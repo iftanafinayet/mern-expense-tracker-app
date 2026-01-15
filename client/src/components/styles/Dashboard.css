@@ -1,0 +1,237 @@
+.dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-8);
+}
+
+/* Summary Cards */
+.summary-cards {
+  display: grid;
+  grid-template-columns: repeat(1, 1fr);
+  gap: var(--spacing-6);
+}
+
+@media (min-width: 768px) {
+  .summary-cards {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.summary-card {
+  background-color: var(--white);
+  border-radius: var(--radius-2xl);
+  box-shadow: var(--shadow-lg);
+  padding: var(--spacing-6);
+}
+
+.balance-card {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: var(--white);
+}
+
+.income-card {
+  border-left: 4px solid var(--income-color);
+}
+
+.expense-card {
+  border-left: 4px solid var(--expense-color);
+}
+
+.summary-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--spacing-4);
+}
+
+.summary-header p {
+  font-size: 1rem;
+  opacity: 0.9;
+}
+
+.balance-card .summary-header p {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.income-card .summary-header p,
+.expense-card .summary-header p {
+  color: var(--gray-600);
+}
+
+.summary-amount {
+  font-size: 2rem;
+  font-weight: 700;
+  margin-bottom: var(--spacing-2);
+}
+
+.summary-label {
+  font-size: 0.875rem;
+  opacity: 0.8;
+}
+
+.balance-card .summary-label {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.summary-change {
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.summary-change.income {
+  color: var(--income-color);
+}
+
+.summary-change.expense {
+  color: var(--expense-color);
+}
+
+/* Quick Actions */
+.quick-actions {
+  display: grid;
+  grid-template-columns: repeat(1, 1fr);
+  gap: var(--spacing-4);
+}
+
+@media (min-width: 640px) {
+  .quick-actions {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.action-btn {
+  padding: var(--spacing-4) var(--spacing-6);
+  font-size: 1rem;
+  font-weight: 500;
+  box-shadow: var(--shadow-lg);
+}
+
+/* Dashboard Grid */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(1, 1fr);
+  gap: var(--spacing-6);
+}
+
+@media (min-width: 1024px) {
+  .dashboard-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Card Title */
+.card-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-bottom: var(--spacing-4);
+  color: var(--gray-900);
+}
+
+/* Transactions List */
+.transactions-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+}
+
+.transaction-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-4);
+  background-color: var(--gray-50);
+  border-radius: var(--radius-xl);
+  transition: background-color var(--transition-base);
+}
+
+.transaction-item:hover {
+  background-color: var(--gray-100);
+}
+
+.transaction-left {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+}
+
+.transaction-icon {
+  width: 3rem;
+  height: 3rem;
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.transaction-icon.income {
+  background-color: rgba(16, 185, 129, 0.1);
+  color: var(--income-color);
+}
+
+.transaction-icon.expense {
+  background-color: rgba(239, 68, 68, 0.1);
+  color: var(--expense-color);
+}
+
+.transaction-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.transaction-title {
+  font-weight: 500;
+  color: var(--gray-900);
+  font-size: 1rem;
+}
+
+.transaction-date {
+  font-size: 0.875rem;
+  color: var(--gray-500);
+}
+
+.transaction-right {
+  text-align: right;
+}
+
+.transaction-amount {
+  font-weight: 600;
+  font-size: 1.125rem;
+}
+
+.transaction-amount.income {
+  color: var(--income-color);
+}
+
+.transaction-amount.expense {
+  color: var(--expense-color);
+}
+
+.transaction-category {
+  font-size: 0.75rem;
+  color: var(--gray-500);
+}
+
+/* Legend */
+.legend-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--spacing-2);
+  margin-top: var(--spacing-4);
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.legend-color {
+  width: 1rem;
+  height: 1rem;
+  border-radius: var(--radius-sm);
+}
+
+.legend-item span {
+  font-size: 0.875rem;
+  color: var(--gray-600);
+}
