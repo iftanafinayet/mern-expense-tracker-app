@@ -1,13 +1,11 @@
 import { useState, useEffect } from 'react';
 import { PlusCircle, TrendingUp, TrendingDown, DollarSign, ShoppingBag, Car, Home, Coffee, Briefcase, Heart } from 'lucide-react';
-import { PieChart, Pie, Cell, ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
 import { toast } from 'sonner';
+import { supabase } from '../../supabaseClient';
 import TransactionModal from './TransactionModal.jsx';
 import '../styles/Dashboard.css';
 
-const API_BASE_URL = 'http://localhost:5000/api';
-
-// Icon mapping untuk kategori
 const iconMap = {
   'Food': ShoppingBag,
   'Transport': Car,
@@ -22,21 +20,24 @@ const iconMap = {
   'Other': ShoppingBag,
 };
 
-// Fungsi untuk generate kategori data dari transactions
+// --- Helper Functions ---
 const generateCategoryData = (transactions) => {
   const categoryMap = {};
-  const colors = ['#ef4444', '#f59e0b', '#3b82f6', '#8b5cf6', '#10b981', '#ec4899', '#f97316', '#06b6d4'];
-  
+  const colors = ['#ef4444', '#f59e0b', '#3b82f6', '#10b981', '#8b5cf6', '#ec4899', '#6b7280', '#06b6d4'];
+
   transactions
     .filter(t => t.type === 'expense')
     .forEach(t => {
       const category = t.category || 'Other';
       if (!categoryMap[category]) {
-        categoryMap[category] = { value: 0, color: colors[Object.keys(categoryMap).length % colors.length] };
+        categoryMap[category] = {
+          value: 0,
+          color: colors[Object.keys(categoryMap).length % colors.length]
+        };
       }
       categoryMap[category].value += Math.abs(t.amount);
     });
-  
+
   return Object.entries(categoryMap).map(([name, data]) => ({
     name,
     value: parseFloat(data.value.toFixed(2)),
@@ -44,80 +45,56 @@ const generateCategoryData = (transactions) => {
   }));
 };
 
-// Fungsi untuk calculate monthly stats
 const calculateMonthlyStats = (transactions) => {
   const now = new Date();
   const currentMonth = now.getMonth();
   const currentYear = now.getFullYear();
-  
-  const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1;
-  const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear;
-  
+
+  const lastMonthDate = new Date(currentYear, currentMonth - 1, 1);
+  const lastMonth = lastMonthDate.getMonth();
+  const lastMonthYear = lastMonthDate.getFullYear();
+
   const currentMonthTransactions = transactions.filter(t => {
     const date = new Date(t.date);
     return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
   });
-  
+
   const lastMonthTransactions = transactions.filter(t => {
     const date = new Date(t.date);
     return date.getMonth() === lastMonth && date.getFullYear() === lastMonthYear;
   });
-  
-  // Current month
-  const currentIncome = currentMonthTransactions
-    .filter(t => t.type === 'income')
-    .reduce((sum, t) => sum + t.amount, 0);
-  
-  const currentExpense = Math.abs(currentMonthTransactions
-    .filter(t => t.type === 'expense')
-    .reduce((sum, t) => sum + t.amount, 0));
-  
-  // Last month
-  const lastIncome = lastMonthTransactions
-    .filter(t => t.type === 'income')
-    .reduce((sum, t) => sum + t.amount, 0);
-  
-  const lastExpense = Math.abs(lastMonthTransactions
-    .filter(t => t.type === 'expense')
-    .reduce((sum, t) => sum + t.amount, 0));
-  
-  // Calculate percentage change
+
+  const currentIncome = currentMonthTransactions.filter(t => t.type === 'income').reduce((sum, t) => sum + Number(t.amount), 0);
+  const currentExpense = Math.abs(currentMonthTransactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + Number(t.amount), 0));
+  const lastIncome = lastMonthTransactions.filter(t => t.type === 'income').reduce((sum, t) => sum + Number(t.amount), 0);
+  const lastExpense = Math.abs(lastMonthTransactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + Number(t.amount), 0));
+
   const incomeChange = lastIncome === 0 ? 0 : ((currentIncome - lastIncome) / lastIncome) * 100;
   const expenseChange = lastExpense === 0 ? 0 : ((currentExpense - lastExpense) / lastExpense) * 100;
-  
-  return {
-    currentIncome,
-    currentExpense,
-    incomeChange: incomeChange.toFixed(1),
-    expenseChange: expenseChange.toFixed(1),
-  };
+
+  return { currentIncome, currentExpense, incomeChange: incomeChange.toFixed(1), expenseChange: expenseChange.toFixed(1) };
 };
 
-// Fungsi untuk generate monthly trend dari transactions
-const generateMonthlyTrend = (transactions) => {
+const generateBarChartData = (transactions) => {
   const monthlyMap = {};
-  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  
-  transactions.forEach(t => {
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+
+  const sorted = [...transactions].sort((a, b) => new Date(a.date) - new Date(b.date));
+
+  sorted.forEach(t => {
     const date = new Date(t.date);
-    const monthKey = monthNames[date.getMonth()] + ' ' + date.getFullYear();
-    
+    const monthKey = `${monthNames[date.getMonth()]} ${date.getFullYear()}`;
+
     if (!monthlyMap[monthKey]) {
-      monthlyMap[monthKey] = { income: 0, expense: 0, month: monthNames[date.getMonth()] };
+      monthlyMap[monthKey] = { name: monthKey, Pemasukan: 0, Pengeluaran: 0 };
     }
-    
-    if (t.type === 'income') {
-      monthlyMap[monthKey].income += t.amount;
-    } else {
-      monthlyMap[monthKey].expense += Math.abs(t.amount);
-    }
+
+    const amt = Math.abs(Number(t.amount));
+    if (t.type === 'income') monthlyMap[monthKey].Pemasukan += amt;
+    else monthlyMap[monthKey].Pengeluaran += amt;
   });
-  
-  return Object.values(monthlyMap).slice(-6).map(item => ({
-    month: item.month,
-    income: parseFloat(item.income.toFixed(2)),
-    expense: parseFloat(item.expense.toFixed(2)),
-  }));
+
+  return Object.values(monthlyMap).slice(-6);
 };
 
 export default function Dashboard() {
@@ -126,117 +103,102 @@ export default function Dashboard() {
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Fetch transactions dari API
-  useEffect(() => {
-    const fetchDashboardData = async () => {
-      try {
-        setLoading(true);
-        const response = await fetch(`${API_BASE_URL}/expenses`);
-        if (response.ok) {
-          const data = await response.json();
-          setTransactions(data && Array.isArray(data) ? data : []);
-        } else {
-          setTransactions([]);
-        }
-      } catch (error) {
-        console.error('Error fetching dashboard data:', error);
-        setTransactions([]);
-      } finally {
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('date', { ascending: false });
+
+      if (error) throw error;
+      setTransactions(data || []);
+    } catch (error) {
+      console.error('Error fetching data:', error.message);
+    } finally {
+      // Memberikan sedikit delay tambahan (opsional) agar loading screen tidak berkedip terlalu cepat
+      setTimeout(() => {
         setLoading(false);
-      }
-    };
-
-    fetchDashboardData();
-  }, []);
-
-  // Generate data dinamis
-  const categoryData = generateCategoryData(transactions);
-  const monthlyTrend = generateMonthlyTrend(transactions);
-  const monthlyStats = calculateMonthlyStats(transactions);
-
-  const totalIncome = monthlyStats.currentIncome;
-  const totalExpense = monthlyStats.currentExpense;
-  const balance = totalIncome - totalExpense;
-
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(amount);
+      }, 800);
+    }
   };
 
+  useEffect(() => { fetchDashboardData(); }, []);
+
+  const categoryData = generateCategoryData(transactions);
+  const barData = generateBarChartData(transactions);
+  const monthlyStats = calculateMonthlyStats(transactions);
+  const totalBalance = transactions.reduce((acc, t) => acc + Number(t.amount), 0);
+  const totalExpenseThisMonth = categoryData.reduce((sum, item) => sum + item.value, 0);
+
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('id-ID', {
+      style: 'currency', currency: 'IDR', minimumFractionDigits: 0
+    }).format(amount);
+  };
+
+
   return (
-    <div className="dashboard">
+    <div className="dashboard fade-in">
       {/* Summary Cards */}
       <div className="summary-cards">
         <div className="summary-card balance-card">
-          <div className="summary-header">
-            <p>Total Balance</p>
-            <DollarSign size={32} />
-          </div>
-          <h2 className="summary-amount">{formatCurrency(balance)}</h2>
-          <p className="summary-label">Current month</p>
+          <div className="summary-header"><p>Total Balance</p><DollarSign size={32} /></div>
+          <h2 className="summary-amount">{formatCurrency(totalBalance)}</h2>
+          <p className="summary-label">Saldo Keseluruhan</p>
         </div>
 
         <div className="summary-card income-card">
-          <div className="summary-header">
-            <p>Total Income</p>
-            <TrendingUp size={32} />
-          </div>
-          <h2 className="summary-amount">{formatCurrency(totalIncome)}</h2>
-          <p className="summary-change income">
-            {monthlyStats.incomeChange >= 0 ? '+' : ''}{monthlyStats.incomeChange}% from last month
-          </p>
+          <div className="summary-header"><p>Pemasukan (Bulan Ini)</p><TrendingUp size={32} /></div>
+          <h2 className="summary-amount">{formatCurrency(monthlyStats.currentIncome)}</h2>
+          <p className="summary-change income">{monthlyStats.incomeChange}% dari bln lalu</p>
         </div>
 
         <div className="summary-card expense-card">
-          <div className="summary-header">
-            <p>Total Expense</p>
-            <TrendingDown size={32} />
-          </div>
-          <h2 className="summary-amount">{formatCurrency(totalExpense)}</h2>
-          <p className="summary-change expense">
-            {monthlyStats.expenseChange >= 0 ? '+' : ''}{monthlyStats.expenseChange}% from last month
-          </p>
+          <div className="summary-header"><p>Pengeluaran (Bulan Ini)</p><TrendingDown size={32} /></div>
+          <h2 className="summary-amount">{formatCurrency(monthlyStats.currentExpense)}</h2>
+          <p className="summary-change expense">↑{monthlyStats.expenseChange}% dari bln lalu</p>
         </div>
       </div>
 
-      {/* Quick Actions */}
       <div className="quick-actions">
         <button onClick={() => { setModalType('income'); setIsModalOpen(true); }} className="btn btn-income action-btn">
-          <PlusCircle size={24} />
-          <span>Add Income</span>
+          <PlusCircle size={24} /> <span>Add Income</span>
         </button>
         <button onClick={() => { setModalType('expense'); setIsModalOpen(true); }} className="btn btn-expense action-btn">
-          <PlusCircle size={24} />
-          <span>Add Expense</span>
+          <PlusCircle size={24} /> <span>Add Expense</span>
         </button>
       </div>
 
-      {/* Content Grid */}
       <div className="dashboard-grid">
-        {/* Recent Transactions */}
-        <div className="card">
+        {/* Recent Transactions with Scroll */}
+        <div className="card" style={{ display: 'flex', flexDirection: 'column', minHeight: '380px', maxHeight: '380px' }}>
           <h3 className="card-title">Recent Transactions</h3>
-          <div className="transactions-list">
+          <div className="transactions-list" style={{ flex: 1, overflowY: 'auto', paddingRight: '4px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {transactions.length === 0 ? (
               <p style={{ textAlign: 'center', color: '#999', padding: '20px' }}>No transactions yet</p>
             ) : (
-              transactions.slice(0, 5).map((transaction) => {
-                const Icon = iconMap[transaction.category] || ShoppingBag;
+              transactions.map((t) => {
+                const Icon = iconMap[t.category] || ShoppingBag;
                 return (
-                  <div key={transaction._id || transaction.id} className="transaction-item">
+                  <div key={t.id} className="transaction-item" style={{ marginBottom: '0' }}>
                     <div className="transaction-left">
-                      <div className={`transaction-icon ${transaction.type}`}>
-                        <Icon size={24} />
-                      </div>
+                      <div className={`transaction-icon ${t.type}`}><Icon size={24} /></div>
                       <div className="transaction-info">
-                        <p className="transaction-title">{transaction.title}</p>
-                        <p className="transaction-date">{new Date(transaction.date).toLocaleDateString()}</p>
+                        <p className="transaction-title">{t.title || t.description}</p>
+                        <p className="transaction-date">
+                          {new Date(t.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'numeric', year: 'numeric' })}
+                        </p>
                       </div>
                     </div>
                     <div className="transaction-right">
-                      <p className={`transaction-amount ${transaction.type}`}>
-                        {transaction.type === 'income' ? '+' : ''}{formatCurrency(transaction.amount)}
+                      <p className={`transaction-amount ${t.type}`}>
+                        {t.type === 'income' ? '+' : '-'}{formatCurrency(Math.abs(t.amount))}
                       </p>
-                      <p className="transaction-category">{transaction.category}</p>
                     </div>
                   </div>
                 );
@@ -245,84 +207,62 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Category Chart */}
-        <div className="card">
+        {/* Expense by Category (Stay in Center) */}
+        <div className="card" style={{ display: 'flex', flexDirection: 'column', minHeight: '380px', maxHeight: '380px' }}>
           <h3 className="card-title">Expense by Category</h3>
           {categoryData.length === 0 ? (
-            <p style={{ textAlign: 'center', color: '#999', padding: '50px 20px' }}>No expense data available</p>
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><p style={{ color: '#999' }}>No expense data</p></div>
           ) : (
-            <>
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={categoryData}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                    outerRadius={80}
-                    dataKey="value"
-                  >
-                    {categoryData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.fill} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(value) => formatCurrency(Number(value))} />
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="legend-grid">
-                {categoryData.map((cat) => (
-                  <div key={cat.name} className="legend-item">
-                    <div className="legend-color" style={{ backgroundColor: cat.fill }} />
-                    <span>{cat.name}</span>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '20px' }}>
+              <div style={{ position: 'relative', width: '100%', height: '180px' }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={categoryData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value" cornerRadius={6}>
+                      {categoryData.map((entry, index) => (<Cell key={`cell-${index}`} fill={entry.fill} stroke="none" />))}
+                    </Pie>
+                    <Tooltip formatter={(v) => formatCurrency(v)} />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', textAlign: 'center', pointerEvents: 'none' }}>
+                  <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>Total</p>
+                  <p style={{ fontSize: '15px', fontWeight: 'bold', margin: 0, color: '#333' }}>{formatCurrency(totalExpenseThisMonth)}</p>
+                </div>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', padding: '0 20px' }}>
+                {categoryData.slice(0, 5).map((cat) => (
+                  <div key={cat.name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: cat.fill }} />
+                      <span style={{ color: '#555', fontSize: '13px' }}>{cat.name}</span>
+                    </div>
+                    <span style={{ fontWeight: '600', fontSize: '13px' }}>{formatCurrency(cat.value)}</span>
                   </div>
                 ))}
               </div>
-            </>
+            </div>
           )}
         </div>
       </div>
 
-      {/* Monthly Trend */}
+      {/* Monthly Trend with BarChart */}
       <div className="card">
-        <h3 className="card-title">Monthly Trend</h3>
-        {monthlyTrend.length === 0 ? (
-          <p style={{ textAlign: 'center', color: '#999', padding: '50px 20px' }}>No trend data available</p>
-        ) : (
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={monthlyTrend}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="month" />
-              <YAxis />
-              <Tooltip formatter={(value) => formatCurrency(Number(value))} />
-              <Legend />
-              <Line type="monotone" dataKey="income" stroke="#10b981" strokeWidth={3} name="Income" />
-              <Line type="monotone" dataKey="expense" stroke="#ef4444" strokeWidth={3} name="Expense" />
-            </LineChart>
+        <h3 className="card-title">Tren Keuangan (6 Bulan Terakhir)</h3>
+        <div style={{ width: '100%', height: 300, marginTop: '20px' }}>
+          <ResponsiveContainer>
+            <BarChart data={barData} margin={{ top: 10, right: 30, left: 10, bottom: 5 }} barGap={8}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
+              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#666' }} />
+              <YAxis hide={true} />
+              <Tooltip cursor={{ fill: 'rgba(0,0,0,0.03)' }} formatter={(v) => formatCurrency(v)} />
+              <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px' }} />
+              <Bar dataKey="Pemasukan" fill="#10b981" radius={[10, 10, 0, 0]} maxBarSize={40} />
+              <Bar dataKey="Pengeluaran" fill="#ef4444" radius={[10, 10, 0, 0]} maxBarSize={40} />
+            </BarChart>
           </ResponsiveContainer>
-        )}
+        </div>
       </div>
 
-      <TransactionModal 
-        isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
-        type={modalType}
-        onSave={() => {
-          // Refresh transactions setelah save
-          const fetchRefresh = async () => {
-            try {
-              const response = await fetch(`${API_BASE_URL}/expenses`);
-              if (response.ok) {
-                const data = await response.json();
-                setTransactions(Array.isArray(data) ? data : []);
-              }
-            } catch (error) {
-              console.error('Error refreshing data:', error);
-            }
-          };
-          fetchRefresh();
-        }}
-      />
+      <TransactionModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} type={modalType} onSave={fetchDashboardData} />
     </div>
   );
 }

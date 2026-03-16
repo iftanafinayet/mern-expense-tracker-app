@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Search, PlusCircle, Edit2, Trash2, ShoppingBag, Car, Home, Coffee, Briefcase, Heart, Film, Calendar } from 'lucide-react';
+import { Search, PlusCircle, Edit2, Trash2, ShoppingBag, Calendar } from 'lucide-react';
 import { toast } from 'sonner';
+import { supabase } from '../../supabaseClient';
 import TransactionModal from './TransactionModal.jsx';
 import '../styles/Transactions.css';
-
-const API_BASE_URL = 'http://localhost:5000/api';
 
 export default function Transactions() {
   const [transactions, setTransactions] = useState([]);
@@ -16,90 +15,88 @@ export default function Transactions() {
   const [editingTransaction, setEditingTransaction] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
 
-  const categories = ['All', 'Food', 'Transport', 'Utilities', 'Entertainment', 'Health', 'Salary', 'Freelance'];
+  // Pastikan kategori sinkron dengan modal
+  const categories = ['All', 'Food', 'Transport', 'Utilities', 'Entertainment', 'Health', 'Shopping', 'Salary', 'Freelance', 'Investment', 'Gift', 'Other'];
 
-  // Fetch transactions dari API
   const fetchTransactions = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${API_BASE_URL}/expenses`);
-      if (response.ok) {
-        const data = await response.json();
-        setTransactions(Array.isArray(data) ? data : []);
-      } else {
-        setTransactions([]);
-      }
+      const { data, error } = await supabase
+        .from('transactions')
+        .select('*')
+        .order('date', { ascending: false });
+
+      if (error) throw error;
+      setTransactions(data || []);
     } catch (error) {
-      console.error('Error fetching transactions:', error);
-      toast.error('Failed to load transactions');
-      setTransactions([]);
+      console.error('Error fetching transactions:', error.message);
+      toast.error('Gagal mengambil data transaksi');
     } finally {
       setLoading(false);
     }
   };
 
-  // Fetch data saat component mount
   useEffect(() => {
     fetchTransactions();
   }, []);
 
+  // FIXED: Logika Filter yang lebih akurat
   const filteredTransactions = transactions.filter((transaction) => {
-    const matchesSearch = transaction.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         transaction.category?.toLowerCase().includes(searchQuery.toLowerCase());
+    // Gunakan title (atau description jika title kosong)
+    const titleText = (transaction.title || transaction.description || '').toLowerCase();
+    const categoryText = (transaction.category || '').toLowerCase();
+    const searchLower = searchQuery.toLowerCase();
+
+    const matchesSearch = titleText.includes(searchLower) || categoryText.includes(searchLower);
     const matchesType = typeFilter === 'all' || transaction.type === typeFilter;
-    const matchesCategory = categoryFilter === 'all' || transaction.category?.toLowerCase() === categoryFilter;
+    const matchesCategory = categoryFilter === 'all' || categoryText === categoryFilter.toLowerCase();
+
     return matchesSearch && matchesType && matchesCategory;
   });
 
   const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(Math.abs(amount));
+    return new Intl.NumberFormat('id-ID', {
+      style: 'currency',
+      currency: 'IDR',
+      minimumFractionDigits: 0
+    }).format(Math.abs(amount));
   };
 
-  // Delete transaction
   const handleDelete = async (id) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/expenses/${id}`, {
-        method: 'DELETE',
-      });
-      
-      if (response.ok) {
-        setTransactions(transactions.filter(t => t._id !== id && t.id !== id));
-        toast.success('Transaction deleted successfully');
-      } else {
-        toast.error('Failed to delete transaction');
-      }
+      const { error } = await supabase
+        .from('transactions')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+
+      setTransactions(transactions.filter(t => t.id !== id));
+      toast.success('Transaksi berhasil dihapus');
     } catch (error) {
-      console.error('Error deleting transaction:', error);
-      toast.error('Failed to delete transaction');
+      toast.error('Gagal menghapus transaksi');
     } finally {
       setDeletingId(null);
     }
   };
 
-  // Edit transaction - pass ke modal, lalu handle save di modal
   const handleEdit = (transaction) => {
     setEditingTransaction(transaction);
     setIsModalOpen(true);
   };
 
-  // Refresh data setelah modal close (untuk add/update)
   const handleModalClose = () => {
     setIsModalOpen(false);
     setEditingTransaction(null);
-    fetchTransactions(); // Refresh data
+    fetchTransactions();
   };
 
-  if (loading) {
-    return <div className="loading">Loading transactions...</div>;
-  }
-
   return (
-    <div className="transactions-page">
-      {/* Header */}
+    <div className="transactions-page fade-in">
       <div className="page-header">
         <div>
-          <h1 className="page-title">Transactions</h1>
-          <p className="page-subtitle">Manage all your transactions</p>
+          <h1 className="page-title">Transactions History</h1>
+          <p className="page-subtitle">Pantau dan kelola arus kasmu</p>
         </div>
         <button onClick={() => { setEditingTransaction(null); setIsModalOpen(true); }} className="btn btn-primary">
           <PlusCircle size={20} />
@@ -107,7 +104,6 @@ export default function Transactions() {
         </button>
       </div>
 
-      {/* Filters - sama seperti sebelumnya */}
       <div className="card filters-card">
         <div className="filters-grid">
           <div className="filter-group search-group">
@@ -118,7 +114,7 @@ export default function Transactions() {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search by title or category..."
+                placeholder="Cari judul atau kategori..."
                 className="input-field"
               />
             </div>
@@ -127,9 +123,9 @@ export default function Transactions() {
           <div className="filter-group">
             <label className="input-label">Type</label>
             <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="input-field">
-              <option value="all">All</option>
-              <option value="income">Income</option>
-              <option value="expense">Expense</option>
+              <option value="all">Semua Tipe</option>
+              <option value="income">Pemasukan</option>
+              <option value="expense">Pengeluaran</option>
             </select>
           </div>
 
@@ -144,92 +140,83 @@ export default function Transactions() {
         </div>
       </div>
 
-      {/* Transactions Table - sama seperti sebelumnya, tapi gunakan filteredTransactions */}
       <div className="card table-card">
         <div className="table-container">
-          <table className="transactions-table">
-            <thead>
-              <tr>
-                <th>Transaction</th>
-                <th>Category</th>
-                <th>Date</th>
-                <th className="text-right">Amount</th>
-                <th className="text-center">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredTransactions.length === 0 ? (
+          {loading ? (
+            <div className="loading-state">Memuat data transaksi...</div>
+          ) : (
+            <table className="transactions-table">
+              <thead>
                 <tr>
-                  <td colSpan={5} className="empty-state">No transactions found</td>
+                  <th>Transaction</th>
+                  <th>Category</th>
+                  <th>Date</th>
+                  <th className="text-right">Amount</th>
+                  <th className="text-center">Actions</th>
                 </tr>
-              ) : (
-                filteredTransactions.map((transaction) => {
-                  const Icon = transaction.icon || ShoppingBag; // Fallback icon
-                  return (
-                    <tr key={transaction._id || transaction.id}>
+              </thead>
+              <tbody>
+                {filteredTransactions.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="empty-state">
+                      {searchQuery ? "Tidak ada transaksi yang cocok" : "Belum ada riwayat transaksi"}
+                    </td>
+                  </tr>
+                ) : (
+                  filteredTransactions.map((t) => (
+                    <tr key={t.id}>
                       <td>
                         <div className="table-transaction">
-                          <div className={`transaction-icon ${transaction.type}`}>
-                            <Icon size={20} />
+                          <div className={`transaction-icon ${t.type}`}>
+                            <ShoppingBag size={20} />
                           </div>
                           <div>
-                            <p className="table-title">{transaction.title}</p>
-                            {transaction.description && (
-                              <p className="table-description">{transaction.description}</p>
-                            )}
+                            {/* FIXED: Mengambil dari t.title sesuai skema Supabase kamu */}
+                            <p className="table-title">{t.title || t.description || "Tanpa Judul"}</p>
+                            <p className="table-type-label">{t.type}</p>
                           </div>
                         </div>
                       </td>
-                      <td><span className="category-badge">{transaction.category}</span></td>
+                      <td><span className="category-badge">{t.category}</span></td>
                       <td>
                         <div className="date-cell">
                           <Calendar size={16} />
-                          {new Date(transaction.date).toLocaleDateString()}
+                          {new Date(t.date).toLocaleDateString('id-ID', {
+                            day: 'numeric',
+                            month: 'short',
+                            year: 'numeric'
+                          })}
                         </div>
                       </td>
                       <td className="text-right">
-                        <span className={`table-amount ${transaction.type}`}>
-                          {transaction.type === 'income' ? '+' : '-'}{formatCurrency(transaction.amount)}
+                        <span className={`table-amount ${t.type}`}>
+                          {t.type === 'income' ? '+' : '-'}{formatCurrency(t.amount)}
                         </span>
                       </td>
                       <td>
                         <div className="action-buttons">
-                          <button onClick={() => handleEdit(transaction)} className="action-btn edit">
+                          <button onClick={() => handleEdit(t)} className="action-btn edit" title="Edit">
                             <Edit2 size={16} />
                           </button>
-                          {deletingId === (transaction._id || transaction.id) ? (
-                            <>
-                              <button 
-                                onClick={() => handleDelete(transaction._id || transaction.id)} 
-                                className="action-btn delete"
-                                title="Confirm delete"
-                              >
-                                ✓
-                              </button>
-                              <button 
-                                onClick={() => setDeletingId(null)} 
-                                className="action-btn"
-                                title="Cancel"
-                              >
-                                ✕
-                              </button>
-                            </>
+
+                          {deletingId === t.id ? (
+                            <div className="confirm-delete-actions">
+                              <button onClick={() => handleDelete(t.id)} className="action-btn confirm" title="Ya, Hapus">✓</button>
+                              <button onClick={() => setDeletingId(null)} className="action-btn cancel" title="Batal">✕</button>
+                            </div>
                           ) : (
-                            <button 
-                              onClick={() => setDeletingId(transaction._id || transaction.id)} 
-                              className="action-btn delete"
-                            >
+                            <button onClick={() => setDeletingId(t.id)} className="action-btn delete" title="Hapus">
                               <Trash2 size={16} />
                             </button>
                           )}
                         </div>
                       </td>
                     </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
+                  ))
+                )}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
 
@@ -237,7 +224,7 @@ export default function Transactions() {
         isOpen={isModalOpen}
         onClose={handleModalClose}
         transaction={editingTransaction}
-        onSave={fetchTransactions} // Pass callback untuk refresh setelah save
+        onSave={fetchTransactions}
       />
     </div>
   );

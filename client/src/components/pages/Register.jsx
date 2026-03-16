@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { User, Mail, Lock, Eye, EyeOff, Wallet } from 'lucide-react';
+import { User, Mail, Lock, Eye, EyeOff } from 'lucide-react'; // Hapus Wallet
 import { toast } from 'sonner';
+import { supabase } from '../../supabaseClient';
 import '../styles/Register.css';
 
-const API_BASE_URL = 'http://localhost:5000/api';
+// Import Logo Baru Kamu
+import LogoGua from './../../LogoMD.svg';
 
 export default function Register() {
   const navigate = useNavigate();
@@ -60,40 +62,36 @@ export default function Register() {
   const registerUser = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          username: formData.username,
-          email: formData.email,
-          password: formData.password,
-        }),
+      const { data, error: authError } = await supabase.auth.signUp({
+        email: formData.email,
+        password: formData.password,
+        options: {
+          data: {
+            username: formData.username,
+          }
+        }
       });
 
-      if (!response.ok) {
-        const error = await response.json();
-        toast.error(error.error || 'Registration failed');
-        return;
-      }
+      if (authError) throw authError;
 
-      toast.success('Registration successful! Please login.');
-      navigate('/login');
+      // --- PERUBAHAN DISINI ---
+      toast.success('Pendaftaran berhasil! Silakan cek email kamu.');
+      navigate('/verify-email'); // Arahkan ke halaman instruksi cek email
+
     } catch (error) {
-      console.error('Registration error:', error);
-      toast.error('An error occurred during registration');
+      toast.error(error.message);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="register-container">
+    <div className="register-container fade-in">
       <div className="register-wrapper">
         <div className="register-header">
           <div className="logo-container">
-            <div className="logo-icon">
-              <Wallet size={40} />
-            </div>
+            {/* Pakai Logo Baru Kamu dengan animasi bounce loading */}
+            <img src={LogoGua} alt="DompetGua" className="loading-logo-bounce" style={{ width: '80px' }} />
           </div>
           <h1 className="register-title">Create Account</h1>
           <p className="register-subtitle">Start tracking your expenses today</p>
@@ -102,7 +100,7 @@ export default function Register() {
         <div className="register-card">
           <form onSubmit={handleSubmit} className="register-form">
             <div className="input-group">
-              <label className="input-label">Username</label>
+              <label className="input-label">Username / Full Name</label>
               <div className="input-wrapper">
                 <User className="input-icon" size={20} />
                 <input
@@ -140,7 +138,7 @@ export default function Register() {
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                   className={`input-field ${errors.password ? 'error' : ''}`}
-                  placeholder="Enter your password"
+                  placeholder="Minimum 6 characters"
                 />
                 <button
                   type="button"
@@ -175,7 +173,7 @@ export default function Register() {
               {errors.confirmPassword && <p className="error-message">{errors.confirmPassword}</p>}
             </div>
 
-            <button type="submit" className="btn btn-primary btn-block" disabled={loading}>
+            <button type="submit" className="btn btn-primary btn-block btn-save" disabled={loading}>
               {loading ? 'Creating account...' : 'Sign Up'}
             </button>
           </form>

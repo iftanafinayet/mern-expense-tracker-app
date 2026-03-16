@@ -1,103 +1,153 @@
 import { useState, useEffect } from 'react';
-import { User, Mail, Camera, Download, Settings, Bell, Shield } from 'lucide-react';
+import { User, Mail, Camera, Download, Settings, Bell, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { supabase } from '../../supabaseClient';
 import '../styles/Profile.css';
-
-const API_BASE_URL = 'http://localhost:5000/api';
 
 export default function Profile() {
   const [userData, setUserData] = useState({
-    username: 'johndoe',
-    email: 'john.doe@example.com',
+    username: '',
+    email: '',
     avatar: '',
   });
 
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
-  // Fetch user profile data
   useEffect(() => {
-    const fetchUserProfile = async () => {
-      try {
-        const userId = localStorage.getItem('userId');
-        if (!userId) return;
-
-        const response = await fetch(`${API_BASE_URL}/auth/user/${userId}`);
-        if (response.ok) {
-          const data = await response.json();
-          setUserData({
-            username: data.username || 'johndoe',
-            email: data.email || 'john.doe@example.com',
-            avatar: data.profileImage || '',
-          });
-        }
-      } catch (error) {
-        console.error('Error fetching user profile:', error);
-      }
-    };
-
     fetchUserProfile();
   }, []);
 
-  const handleExportIncome = () => {
-    toast.success('Income report downloaded successfully!', { description: 'Check your downloads folder' });
-    console.log('Exporting income data...');
+  const fetchUserProfile = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (user) {
+        const { data: profile, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single();
+
+        if (error && error.code !== 'PGRST116') throw error;
+
+        setUserData({
+          username: profile?.full_name || user.email.split('@')[0],
+          email: user.email,
+          avatar: profile?.avatar_url || '',
+        });
+      }
+    } catch (error) {
+      console.error('Error:', error.message);
+      toast.error('Gagal mengambil data profil');
+    }
   };
 
-  const handleExportExpense = () => {
-    toast.success('Expense report downloaded successfully!', { description: 'Check your downloads folder' });
-    console.log('Exporting expense data...');
+  // FUNGSI UPLOAD FOTO KE SUPABASE STORAGE
+  const uploadAvatar = async (event) => {
+    try {
+      setUploading(true);
+      if (!event.target.files || event.target.files.length === 0) {
+        throw new Error('Pilih gambar untuk diupload.');
+      }
+
+      const file = event.target.files[0];
+      const fileExt = file.name.split('.').pop();
+      const { data: { user } } = await supabase.auth.getUser();
+      const fileName = `${user.id}-${Math.random()}.${fileExt}`;
+      const filePath = `${fileName}`;
+
+      // 1. Upload ke Storage
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      // 2. Ambil Public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(filePath);
+
+      // 3. Update database profiles (TAMBAHKAN full_name DISINI)
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .upsert({
+          id: user.id,
+          avatar_url: publicUrl,
+          full_name: userData.username, // <--- TAMBAHKAN INI agar NOT NULL constraint terpenuhi
+          updated_at: new Date(),
+        });
+
+      if (updateError) throw updateError;
+
+      setUserData({ ...userData, avatar: publicUrl });
+      toast.success('Foto profil diperbarui!');
+    } catch (error) {
+      toast.error('Gagal upload: ' + error.message);
+    } finally {
+      setUploading(false);
+    }
   };
 
   const handleSaveProfile = async () => {
     setLoading(true);
     try {
-      const userId = localStorage.getItem('userId');
-      if (!userId) {
-        toast.error('User not authenticated');
-        return;
-      }
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('User tidak ditemukan');
 
-      const response = await fetch(`${API_BASE_URL}/auth/user/${userId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          username: userData.username,
-          email: userData.email,
-          profileImage: userData.avatar,
-        }),
-      });
+      const { error } = await supabase
+        .from('profiles')
+        .upsert({
+          id: user.id,          // Wajib ada untuk penanda baris mana yang diupdate
+          full_name: userData.username,
+          avatar_url: userData.avatar, // Cek apakah di DB namanya avatar_url atau avatar?
+          updated_at: new Date(),
+        });
 
-      if (response.ok) {
-        toast.success('Profile updated successfully!');
-        setIsEditing(false);
-      } else {
-        toast.error('Failed to update profile');
-      }
+      if (error) throw error;
+
+      toast.success('Profil berhasil diperbarui!');
+      setIsEditing(false);
     } catch (error) {
-      console.error('Error updating profile:', error);
-      toast.error('An error occurred');
+      toast.error('Gagal memperbarui profil: ' + error.message);
     } finally {
       setLoading(false);
     }
   };
 
+  const handleExport = (type) => {
+    toast.info(`Fitur Export ${type} segera hadir!`, {
+      description: 'Kami sedang menyiapkan generator CSV untuk laporanmu.'
+    });
+  };
+
   return (
-    <div className="profile-page">
-      {/* Profile Header */}
+    <div className="profile-page fade-in">
       <div className="profile-header">
         <div className="profile-header-content">
           <div className="avatar-wrapper">
             <div className="avatar">
-              {userData.avatar ? (
+              {uploading ? (
+                <Loader2 size={32} className="animate-spin text-blue-500" />
+              ) : userData.avatar ? (
                 <img src={userData.avatar} alt="Profile" />
               ) : (
                 <User size={48} />
               )}
             </div>
-            <button className="avatar-upload">
+            <label className="avatar-upload" htmlFor="avatar-input">
               <Camera size={16} />
-            </button>
+              <input
+                type="file"
+                id="avatar-input"
+                accept="image/*"
+                onChange={uploadAvatar}
+                disabled={uploading}
+                style={{ display: 'none' }}
+              />
+            </label>
           </div>
 
           <div className="profile-info">
@@ -106,7 +156,6 @@ export default function Profile() {
               <Mail size={16} />
               {userData.email}
             </p>
-            <p className="profile-member">Member since January 2026</p>
           </div>
         </div>
       </div>
@@ -121,7 +170,7 @@ export default function Profile() {
           <button
             onClick={() => isEditing ? handleSaveProfile() : setIsEditing(true)}
             className="btn btn-primary"
-            disabled={loading}
+            disabled={loading || uploading}
           >
             {loading ? 'Saving...' : (isEditing ? 'Save Changes' : 'Edit Profile')}
           </button>
@@ -129,7 +178,7 @@ export default function Profile() {
 
         <div className="settings-form">
           <div className="input-group">
-            <label className="input-label">Username</label>
+            <label className="input-label">Username / Full Name</label>
             <div className="input-wrapper">
               <User className="input-icon" size={20} />
               <input
@@ -143,15 +192,15 @@ export default function Profile() {
           </div>
 
           <div className="input-group">
-            <label className="input-label">Email</label>
+            <label className="input-label">Email (Auth Managed)</label>
             <div className="input-wrapper">
               <Mail className="input-icon" size={20} />
               <input
                 type="email"
                 value={userData.email}
-                onChange={(e) => setUserData({ ...userData, email: e.target.value })}
-                disabled={!isEditing}
+                disabled={true}
                 className="input-field"
+                style={{ opacity: 0.6, cursor: 'not-allowed' }}
               />
             </div>
           </div>
@@ -166,34 +215,22 @@ export default function Profile() {
         </h2>
 
         <div className="export-grid">
-          <div className="export-card income">
+          <div className="export-card income" onClick={() => handleExport('Income')}>
             <div className="export-header">
-              <div className="export-icon income">
-                <Download size={24} />
-              </div>
+              <div className="export-icon income"><Download size={24} /></div>
               <span className="export-emoji">📈</span>
             </div>
             <h3 className="export-title">Income Report</h3>
-            <p className="export-description">Download all your income transactions in Excel format</p>
-            <button onClick={handleExportIncome} className="btn btn-income export-btn">
-              <Download size={16} />
-              Download Income
-            </button>
+            <p className="export-description">Format .CSV</p>
           </div>
 
-          <div className="export-card expense">
+          <div className="export-card expense" onClick={() => handleExport('Expense')}>
             <div className="export-header">
-              <div className="export-icon expense">
-                <Download size={24} />
-              </div>
+              <div className="export-icon expense"><Download size={24} /></div>
               <span className="export-emoji">📉</span>
             </div>
             <h3 className="export-title">Expense Report</h3>
-            <p className="export-description">Download all your expense transactions in Excel format</p>
-            <button onClick={handleExportExpense} className="btn btn-expense export-btn">
-              <Download size={16} />
-              Download Expenses
-            </button>
+            <p className="export-description">Format .CSV</p>
           </div>
         </div>
       </div>
@@ -201,31 +238,19 @@ export default function Profile() {
       {/* Preferences */}
       <div className="card">
         <h2 className="card-title">Preferences</h2>
-
         <div className="preferences-list">
           <div className="preference-item">
             <div className="preference-info">
               <Bell size={20} />
               <div>
                 <p className="preference-title">Email Notifications</p>
-                <p className="preference-description">Receive updates about your transactions</p>
+                <p className="preference-description">Update laporan mingguan DompetGua</p>
               </div>
             </div>
             <label className="toggle">
               <input type="checkbox" defaultChecked />
               <span className="toggle-slider"></span>
             </label>
-          </div>
-
-          <div className="preference-item">
-            <div className="preference-info">
-              <Shield size={20} />
-              <div>
-                <p className="preference-title">Two-Factor Authentication</p>
-                <p className="preference-description">Add an extra layer of security</p>
-              </div>
-            </div>
-            <button className="btn btn-primary btn-sm">Enable</button>
           </div>
         </div>
       </div>

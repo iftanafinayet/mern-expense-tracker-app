@@ -2,16 +2,15 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Mail, Lock, Eye, EyeOff, Wallet } from 'lucide-react';
 import { toast } from 'sonner';
+import { supabase } from '../../supabaseClient';
 import '../styles/Login.css';
-
-const API_BASE_URL = 'http://localhost:5000/api';
 
 export default function Login({ onLogin }) {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
     email: '',
     password: '',
-    rememberMe: false,
+    rememberMe: false, // Supabase handle session persist secara default
   });
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState({});
@@ -46,36 +45,23 @@ export default function Login({ onLogin }) {
   const loginUser = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: formData.email,
-          password: formData.password,
-        }),
+      // Menggunakan Supabase Auth untuk Sign In
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: formData.email,
+        password: formData.password,
       });
 
-      if (!response.ok) {
-        const error = await response.json();
-        toast.error(error.error || 'Login failed');
+      if (error) {
+        toast.error(error.message || 'Login failed');
         return;
       }
 
-      const data = await response.json();
-      
-      // Simpan user data dan token
-      if (data.user) {
-        localStorage.setItem('userId', data.user._id);
-        localStorage.setItem('username', data.user.username);
-        localStorage.setItem('userEmail', data.user.email);
+      if (data.session) {
+        toast.success('Login successful!');
+        // onLogin() di App.js opsional karena onAuthStateChange akan mendeteksi session baru
+        if (onLogin) onLogin();
+        navigate('/');
       }
-      if (formData.rememberMe) {
-        localStorage.setItem('rememberMe', 'true');
-      }
-
-      toast.success('Login successful!');
-      onLogin();
-      navigate('/');
     } catch (error) {
       console.error('Login error:', error);
       toast.error('An error occurred during login');
@@ -87,7 +73,6 @@ export default function Login({ onLogin }) {
   return (
     <div className="login-container">
       <div className="login-wrapper">
-        {/* Logo & Title */}
         <div className="login-header">
           <div className="logo-container">
             <div className="logo-icon">
@@ -98,10 +83,8 @@ export default function Login({ onLogin }) {
           <p className="login-subtitle">Sign in to manage your expenses</p>
         </div>
 
-        {/* Login Form */}
         <div className="login-card">
           <form onSubmit={handleSubmit} className="login-form">
-            {/* Email Field */}
             <div className="input-group">
               <label className="input-label">Email</label>
               <div className="input-wrapper">
@@ -117,7 +100,6 @@ export default function Login({ onLogin }) {
               {errors.email && <p className="error-message">{errors.email}</p>}
             </div>
 
-            {/* Password Field */}
             <div className="input-group">
               <label className="input-label">Password</label>
               <div className="input-wrapper">
@@ -140,7 +122,6 @@ export default function Login({ onLogin }) {
               {errors.password && <p className="error-message">{errors.password}</p>}
             </div>
 
-            {/* Remember Me */}
             <div className="remember-forgot">
               <label className="remember-label">
                 <input
@@ -151,16 +132,15 @@ export default function Login({ onLogin }) {
                 />
                 <span>Remember me</span>
               </label>
+              {/* Di Supabase, reset password biasanya ditangani via dashboard/link khusus */}
               <a href="#" className="forgot-link">Forgot password?</a>
             </div>
 
-            {/* Submit Button */}
             <button type="submit" className="btn btn-primary btn-block" disabled={loading}>
               {loading ? 'Logging in...' : 'Login'}
             </button>
           </form>
 
-          {/* Register Link */}
           <p className="register-link">
             Don't have an account?{' '}
             <Link to="/register" className="link-primary">Register</Link>
