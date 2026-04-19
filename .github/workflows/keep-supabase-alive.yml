@@ -11,6 +11,6 @@ jobs:
     steps:
       - name: Ping Supabase REST API
         run: |
-          curl -X GET "${{ secrets.SUPABASE_URL }}/rest/v1/transactions?select=*&limit=1" \
-          -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
-          -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}"
+          curl -X GET "https://jeagcuqmyrbgnrzgwgyv.supabase.co/rest/v1/transactions?select=*&limit=1" \
+          -H "apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImplYWdjdXFteXJiZ25yemd3Z3l2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM2NzQ0ODUsImV4cCI6MjA4OTI1MDQ4NX0.v_NNDDcL_B6Z3tno54LPe0eEZpc7-Vlk31IkZKnS4ck" \
+          -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImplYWdjdXFteXJiZ25yemd3Z3l2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM2NzQ0ODUsImV4cCI6MjA4OTI1MDQ4NX0.v_NNDDcL_B6Z3tno54LPe0eEZpc7-Vlk31IkZKnS4ck"
