@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { Toaster } from 'sonner';
 import { supabase } from '../supabaseClient';
+import { isGuestMode, disableGuestMode } from '../utils/guestStorage';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
@@ -15,13 +16,11 @@ export default function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // 1. Ambil session saat pertama kali app load
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setLoading(false);
     });
 
-    // 2. Pasang listener untuk perubahan status auth (login/logout)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       setLoading(false);
@@ -30,17 +29,26 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Tampilkan loading sebentar saat mengecek session agar tidak langsung redirect ke login
   if (loading) {
     return <div className="flex h-screen items-center justify-center">Loading...</div>;
   }
 
+  const isAuthed = session || isGuestMode();
+
   const ProtectedRoute = ({ children }) => {
-    return session ? <>{children}</> : <Navigate to="/login" />;
+    return isAuthed ? <>{children}</> : <Navigate to="/login" />;
+  };
+
+  const PublicRoute = ({ children }) => {
+    return isAuthed ? <Navigate to="/" /> : <>{children}</>;
   };
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    if (isGuestMode()) {
+      disableGuestMode();
+    } else {
+      await supabase.auth.signOut();
+    }
   };
 
   return (
@@ -50,11 +58,11 @@ export default function App() {
         <Routes>
           <Route
             path="/login"
-            element={session ? <Navigate to="/" /> : <Login />}
+            element={<PublicRoute><Login /></PublicRoute>}
           />
           <Route
             path="/register"
-            element={session ? <Navigate to="/" /> : <Register />}
+            element={<PublicRoute><Register /></PublicRoute>}
           />
 
           <Route
@@ -90,7 +98,6 @@ export default function App() {
             }
           />
 
-          {/* Fallback route */}
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </BrowserRouter>

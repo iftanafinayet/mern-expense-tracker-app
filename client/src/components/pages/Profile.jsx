@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { User, Mail, Camera, Download, Settings, Bell, Loader2 } from 'lucide-react';
+import { User, Mail, Camera, Download, Settings, Bell, Loader2, LogIn } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { supabase } from '../../supabaseClient';
 import '../styles/Profile.css';
@@ -10,6 +11,7 @@ export default function Profile() {
     email: '',
     avatar: '',
   });
+  const [isGuest, setIsGuest] = useState(false);
 
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -24,6 +26,17 @@ export default function Profile() {
       const { data: { user } } = await supabase.auth.getUser();
 
       if (user) {
+        setIsGuest(user.is_anonymous ?? false);
+
+        if (user.is_anonymous) {
+          setUserData({
+            username: 'Pengguna Tamu',
+            email: 'guest@dompetgua.local',
+            avatar: '',
+          });
+          return;
+        }
+
         const { data: profile, error } = await supabase
           .from('profiles')
           .select('*')
@@ -92,6 +105,11 @@ export default function Profile() {
   };
 
   const handleSaveProfile = async () => {
+    if (isGuest) {
+      toast.error('Buat akun dulu untuk menyimpan profil');
+      return;
+    }
+
     setLoading(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -100,9 +118,9 @@ export default function Profile() {
       const { error } = await supabase
         .from('profiles')
         .upsert({
-          id: user.id,          // Wajib ada untuk penanda baris mana yang diupdate
+          id: user.id,
           full_name: userData.username,
-          avatar_url: userData.avatar, // Cek apakah di DB namanya avatar_url atau avatar?
+          avatar_url: userData.avatar,
           updated_at: new Date(),
         });
 
@@ -160,6 +178,23 @@ export default function Profile() {
         </div>
       </div>
 
+      {isGuest && (
+        <div className="card guest-alert-card">
+          <div className="guest-alert-content">
+            <div className="guest-alert-icon">
+              <LogIn size={24} />
+            </div>
+            <div className="guest-alert-text">
+              <h3>Mode Tamu</h3>
+              <p>Data hanya tersimpan sementara. Daftar akun gratis untuk menyimpan data secara permanen.</p>
+            </div>
+            <Link to="/register" className="btn btn-primary guest-register-btn">
+              Daftar
+            </Link>
+          </div>
+        </div>
+      )}
+
       {/* Account Settings */}
       <div className="card">
         <div className="card-header">
@@ -167,13 +202,15 @@ export default function Profile() {
             <Settings size={24} />
             Account Settings
           </h2>
-          <button
-            onClick={() => isEditing ? handleSaveProfile() : setIsEditing(true)}
-            className="btn btn-primary"
-            disabled={loading || uploading}
-          >
-            {loading ? 'Saving...' : (isEditing ? 'Save Changes' : 'Edit Profile')}
-          </button>
+          {!isGuest && (
+            <button
+              onClick={() => isEditing ? handleSaveProfile() : setIsEditing(true)}
+              className="btn btn-primary"
+              disabled={loading || uploading}
+            >
+              {loading ? 'Saving...' : (isEditing ? 'Save Changes' : 'Edit Profile')}
+            </button>
+          )}
         </div>
 
         <div className="settings-form">

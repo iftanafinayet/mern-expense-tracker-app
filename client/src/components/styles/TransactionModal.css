@@ -1,8 +1,6 @@
-/* Overlay & Container Utama */
 .modal-overlay {
   position: fixed;
   inset: 0;
-  /* Harus lebih kecil dari z-index .header */
   z-index: 1000 !important;
   background-color: rgba(15, 23, 42, 0.45);
   backdrop-filter: blur(8px);
@@ -10,6 +8,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  animation: overlayFadeIn 0.3s ease;
 }
 
 .modal-content {
@@ -18,13 +17,13 @@
   box-shadow: var(--shadow-2xl);
   width: 100%;
   max-width: 32rem;
-  /* Sedikit lebih lebar untuk grid */
   max-height: 90vh;
   overflow-y: auto;
-  animation: slideUp 0.3s ease-out;
+  animation: modalPopUp 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  box-shadow: var(--shadow-2xl), 0 0 0 1px rgba(255, 255, 255, 0.1);
+  position: relative;
 }
 
-/* Header Section */
 .modal-header {
   position: sticky;
   top: 0;
@@ -68,7 +67,6 @@
   color: var(--gray-900);
 }
 
-/* Form Layout */
 .modal-form {
   padding: var(--spacing-6);
   display: flex;
@@ -86,7 +84,6 @@
   grid-column: span 2;
 }
 
-/* Type Toggle Switch */
 .type-toggle-container {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -120,7 +117,6 @@
   box-shadow: var(--shadow-sm);
 }
 
-/* Input & Labels */
 .input-label {
   display: flex;
   align-items: center;
@@ -164,7 +160,6 @@
   resize: none;
 }
 
-/* Footer & Buttons */
 .modal-footer {
   display: flex;
   gap: var(--spacing-3);
@@ -205,30 +200,22 @@
   transform: translateY(0);
 }
 
-/* Animasi */
-@keyframes fadeIn {
+@keyframes overlayFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes modalPopUp {
   from {
     opacity: 0;
+    transform: scale(0.92) translateY(30px);
   }
-
   to {
     opacity: 1;
+    transform: scale(1) translateY(0);
   }
 }
 
-@keyframes slideUp {
-  from {
-    transform: translateY(20px);
-    opacity: 0;
-  }
-
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
-}
-
-/* Responsive Fix */
 @media (max-width: 480px) {
   .form-grid {
     grid-template-columns: 1fr;
@@ -236,5 +223,64 @@
 
   .full-width {
     grid-column: span 1;
+  }
+}
+
+@media (max-width: 768px) {
+  .modal-overlay {
+    align-items: flex-end;
+    background-color: rgba(15, 23, 42, 0.5);
+  }
+
+  .modal-content {
+    max-width: 100%;
+    max-height: 92vh;
+    border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
+    animation: slideUpMobile 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  .modal-header {
+    padding: var(--spacing-4);
+  }
+
+  .modal-form {
+    padding: var(--spacing-4);
+    gap: var(--spacing-4);
+  }
+
+  .form-grid {
+    gap: var(--spacing-3);
+  }
+
+  .type-option {
+    padding: 12px;
+    font-size: 0.95rem;
+  }
+
+  .input-field {
+    padding: 14px 16px;
+    font-size: 1rem;
+  }
+
+  .btn-cancel,
+  .btn-save {
+    padding: 14px;
+    font-size: 1rem;
+  }
+
+  .modal-close-btn {
+    width: 40px;
+    height: 40px;
+  }
+}
+
+@keyframes slideUpMobile {
+  from {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }

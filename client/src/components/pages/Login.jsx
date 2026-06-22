@@ -1,20 +1,22 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Mail, Lock, Eye, EyeOff, Wallet } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, Wallet, UserPlus } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '../../supabaseClient';
+import { enableGuestMode } from '../../utils/guestStorage';
 import '../styles/Login.css';
 
-export default function Login({ onLogin }) {
+export default function Login() {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
     email: '',
     password: '',
-    rememberMe: false, // Supabase handle session persist secara default
+    rememberMe: false,
   });
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
+  const [guestLoading, setGuestLoading] = useState(false);
 
   const validateForm = () => {
     const newErrors = {};
@@ -45,7 +47,6 @@ export default function Login({ onLogin }) {
   const loginUser = async () => {
     setLoading(true);
     try {
-      // Menggunakan Supabase Auth untuk Sign In
       const { data, error } = await supabase.auth.signInWithPassword({
         email: formData.email,
         password: formData.password,
@@ -58,8 +59,6 @@ export default function Login({ onLogin }) {
 
       if (data.session) {
         toast.success('Login successful!');
-        // onLogin() di App.js opsional karena onAuthStateChange akan mendeteksi session baru
-        if (onLogin) onLogin();
         navigate('/');
       }
     } catch (error) {
@@ -67,6 +66,35 @@ export default function Login({ onLogin }) {
       toast.error('An error occurred during login');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleGuestLogin = async () => {
+    setGuestLoading(true);
+    try {
+      const { data, error } = await supabase.auth.signInAnonymously();
+
+      if (error || !data.session) {
+        enableGuestMode();
+        toast.success('Masuk sebagai tamu!', {
+          description: 'Data disimpan di perangkat ini saja.',
+        });
+        navigate('/');
+        return;
+      }
+
+      if (data.session) {
+        toast.success('Masuk sebagai tamu!');
+        navigate('/');
+      }
+    } catch (error) {
+      enableGuestMode();
+      toast.success('Masuk sebagai tamu!', {
+        description: 'Data disimpan di perangkat ini saja.',
+      });
+      navigate('/');
+    } finally {
+      setGuestLoading(false);
     }
   };
 
@@ -132,7 +160,6 @@ export default function Login({ onLogin }) {
                 />
                 <span>Remember me</span>
               </label>
-              {/* Di Supabase, reset password biasanya ditangani via dashboard/link khusus */}
               <a href="#" className="forgot-link">Forgot password?</a>
             </div>
 
@@ -140,6 +167,21 @@ export default function Login({ onLogin }) {
               {loading ? 'Logging in...' : 'Login'}
             </button>
           </form>
+
+          <div className="guest-divider">
+            <span className="guest-divider-line" />
+            <span className="guest-divider-text">atau</span>
+            <span className="guest-divider-line" />
+          </div>
+
+          <button
+            onClick={handleGuestLogin}
+            className="btn btn-guest btn-block"
+            disabled={guestLoading}
+          >
+            <UserPlus size={20} />
+            {guestLoading ? 'Memproses...' : 'Lanjut sebagai Tamu'}
+          </button>
 
           <p className="register-link">
             Don't have an account?{' '}

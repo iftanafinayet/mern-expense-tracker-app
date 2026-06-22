@@ -270,77 +270,73 @@ a {
   }
 }
 
-/* =========================================
-   TAMBAHAN EFEK BLUR, MODAL, & FADE-IN
-   ========================================= */
-
-/* 1. Efek Blur pada Overlay Modal */
-.modal-overlay {
-  background-color: rgba(15, 23, 42, 0.45) !important;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  animation: overlayFadeIn 0.3s ease;
+.input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
 }
 
-/* 2. Animasi Muncul untuk Konten Modal */
-.modal-content {
-  animation: modalPopUp 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-  box-shadow: var(--shadow-2xl), 0 0 0 1px rgba(255, 255, 255, 0.1);
+.input-icon {
+  position: absolute;
+  left: var(--spacing-3);
+  color: var(--gray-400);
+  pointer-events: none;
 }
 
-/* 3. Efek Glow saat Input Fokus */
-.input-field:focus {
-  border-color: var(--primary-color) !important;
-  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.15) !important;
-  background-color: var(--white);
+.input-wrapper .input-field {
+  padding-left: 2.5rem;
 }
 
-/* 4. Animasi Fade In untuk Halaman Dashboard */
+.table-type-label {
+  font-size: 0.75rem;
+  color: var(--gray-500);
+  text-transform: capitalize;
+}
+
+.confirm-delete-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.action-btn.confirm {
+  color: var(--income-color);
+}
+
+.action-btn.confirm:hover {
+  background-color: rgba(16, 185, 129, 0.1);
+}
+
+.action-btn.cancel {
+  color: var(--expense-color);
+}
+
+.action-btn.cancel:hover {
+  background-color: rgba(239, 68, 68, 0.1);
+}
+
+.loading-state {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--gray-500);
+}
+
 .fade-in {
   animation: pageFadeIn 0.6s ease-out forwards;
 }
 
-/* 5. Keyframes Animations */
 @keyframes pageFadeIn {
   from {
     opacity: 0;
     transform: translateY(10px);
   }
-
   to {
     opacity: 1;
     transform: translateY(0);
   }
 }
 
-@keyframes overlayFadeIn {
-  from {
-    opacity: 0;
+@media (max-width: 768px) {
+  .fade-in {
+    animation-duration: 0.4s;
   }
-
-  to {
-    opacity: 1;
-  }
-}
-
-@keyframes modalPopUp {
-  from {
-    opacity: 0;
-    transform: scale(0.92) translateY(30px);
-  }
-
-  to {
-    opacity: 1;
-    transform: scale(1) translateY(0);
-  }
-}
-
-/* 6. Hover Effect pada Tombol Catat Transaksi */
-.btn-save:not(:disabled):hover {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 15px -3px rgba(37, 99, 235, 0.3);
-}
-
-.btn-save:active {
-  transform: translateY(0);
 }

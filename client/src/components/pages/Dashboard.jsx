@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { PlusCircle, TrendingUp, TrendingDown, DollarSign, ShoppingBag, Car, Home, Coffee, Briefcase, Heart } from 'lucide-react';
+import { PlusCircle, TrendingUp, TrendingDown, DollarSign, ShoppingBag, Car, Home, Coffee, Briefcase, Heart, X } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
-import { toast } from 'sonner';
 import { supabase } from '../../supabaseClient';
+import { isGuestMode, getGuestTransactions } from '../../utils/guestStorage';
 import TransactionModal from './TransactionModal.jsx';
 import '../styles/Dashboard.css';
 
@@ -20,7 +20,6 @@ const iconMap = {
   'Other': ShoppingBag,
 };
 
-// --- Helper Functions ---
 const generateCategoryData = (transactions) => {
   const categoryMap = {};
   const colors = ['#ef4444', '#f59e0b', '#3b82f6', '#10b981', '#8b5cf6', '#ec4899', '#6b7280', '#06b6d4'];
@@ -101,11 +100,15 @@ export default function Dashboard() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalType, setModalType] = useState('expense');
   const [transactions, setTransactions] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [fabOpen, setFabOpen] = useState(false);
 
   const fetchDashboardData = async () => {
     try {
-      setLoading(true);
+      if (isGuestMode()) {
+        setTransactions(getGuestTransactions());
+        return;
+      }
+
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
@@ -119,11 +122,6 @@ export default function Dashboard() {
       setTransactions(data || []);
     } catch (error) {
       console.error('Error fetching data:', error.message);
-    } finally {
-      // Memberikan sedikit delay tambahan (opsional) agar loading screen tidak berkedip terlalu cepat
-      setTimeout(() => {
-        setLoading(false);
-      }, 800);
     }
   };
 
@@ -141,10 +139,14 @@ export default function Dashboard() {
     }).format(amount);
   };
 
+  const openModal = (type) => {
+    setModalType(type);
+    setIsModalOpen(true);
+    setFabOpen(false);
+  };
 
   return (
     <div className="dashboard fade-in">
-      {/* Summary Cards */}
       <div className="summary-cards">
         <div className="summary-card balance-card">
           <div className="summary-header"><p>Total Balance</p><DollarSign size={32} /></div>
@@ -166,16 +168,15 @@ export default function Dashboard() {
       </div>
 
       <div className="quick-actions">
-        <button onClick={() => { setModalType('income'); setIsModalOpen(true); }} className="btn btn-income action-btn">
+        <button onClick={() => openModal('income')} className="btn btn-income action-btn">
           <PlusCircle size={24} /> <span>Add Income</span>
         </button>
-        <button onClick={() => { setModalType('expense'); setIsModalOpen(true); }} className="btn btn-expense action-btn">
+        <button onClick={() => openModal('expense')} className="btn btn-expense action-btn">
           <PlusCircle size={24} /> <span>Add Expense</span>
         </button>
       </div>
 
       <div className="dashboard-grid">
-        {/* Recent Transactions with Scroll */}
         <div className="card" style={{ display: 'flex', flexDirection: 'column', minHeight: '380px', maxHeight: '380px' }}>
           <h3 className="card-title">Recent Transactions</h3>
           <div className="transactions-list" style={{ flex: 1, overflowY: 'auto', paddingRight: '4px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -207,7 +208,6 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Expense by Category (Stay in Center) */}
         <div className="card" style={{ display: 'flex', flexDirection: 'column', minHeight: '380px', maxHeight: '380px' }}>
           <h3 className="card-title">Expense by Category</h3>
           {categoryData.length === 0 ? (
@@ -244,7 +244,6 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Monthly Trend with BarChart */}
       <div className="card">
         <h3 className="card-title">Tren Keuangan (6 Bulan Terakhir)</h3>
         <div style={{ width: '100%', height: 300, marginTop: '20px' }}>
@@ -263,6 +262,25 @@ export default function Dashboard() {
       </div>
 
       <TransactionModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} type={modalType} onSave={fetchDashboardData} />
+
+      <div className={`fab-overlay ${fabOpen ? 'active' : ''}`} onClick={() => setFabOpen(false)} />
+      <div className={`fab-menu ${fabOpen ? 'active' : ''}`}>
+        <button onClick={() => openModal('income')} className="fab-option income">
+          <TrendingUp size={20} />
+          <span>Add Income</span>
+        </button>
+        <button onClick={() => openModal('expense')} className="fab-option expense">
+          <TrendingDown size={20} />
+          <span>Add Expense</span>
+        </button>
+      </div>
+      <button
+        className={`fab ${fabOpen ? 'active' : ''}`}
+        onClick={() => setFabOpen(!fabOpen)}
+        aria-label="Add transaction"
+      >
+        {fabOpen ? <X size={28} /> : <PlusCircle size={28} />}
+      </button>
     </div>
   );
 }

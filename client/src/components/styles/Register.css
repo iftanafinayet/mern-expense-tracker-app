@@ -48,3 +48,49 @@
   font-size: 0.875rem;
   color: var(--gray-600);
 }
+
+@media (max-width: 480px) {
+  .register-container {
+    padding: 0;
+    align-items: flex-end;
+  }
+
+  .register-wrapper {
+    max-width: 100%;
+  }
+
+  .register-header {
+    margin-bottom: var(--spacing-6);
+    padding-top: 30px;
+  }
+
+  .register-card {
+    border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
+    padding: var(--spacing-6);
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.08);
+  }
+
+  .register-title {
+    font-size: 1.5rem;
+  }
+
+  .input-group {
+    margin-bottom: var(--spacing-4);
+  }
+
+  .login-link {
+    margin-top: var(--spacing-4);
+  }
+}
+
+@media (max-width: 480px) and (max-height: 700px) {
+  .register-container {
+    align-items: flex-start;
+    padding-top: 10px;
+  }
+
+  .register-header {
+    padding-top: 10px;
+    margin-bottom: var(--spacing-3);
+  }
+}

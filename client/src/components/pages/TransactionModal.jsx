@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { createPortal } from 'react-dom'; // 1. Import createPortal
+import { createPortal } from 'react-dom';
 import { X, DollarSign, Type, Calendar, Tag, FileText } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '../../supabaseClient';
+import { isGuestMode, addGuestTransaction, updateGuestTransaction } from '../../utils/guestStorage';
 import '../styles/TransactionModal.css';
 
 export default function TransactionModal({ isOpen, onClose, type = 'expense', transaction, onSave }) {
@@ -63,15 +64,7 @@ export default function TransactionModal({ isOpen, onClose, type = 'expense', tr
 
     setLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-
-      if (!user) {
-        toast.error('Sesi berakhir, silakan login kembali.');
-        return;
-      }
-
       const payload = {
-        user_id: user.id,
         title: formData.title,
         amount: formData.type === 'income' ? parseFloat(formData.amount) : -Math.abs(parseFloat(formData.amount)),
         type: formData.type,
@@ -80,10 +73,31 @@ export default function TransactionModal({ isOpen, onClose, type = 'expense', tr
         description: formData.description,
       };
 
+      if (isGuestMode()) {
+        if (transaction) {
+          updateGuestTransaction(transaction.id, payload);
+          toast.success('Transaksi berhasil diperbarui');
+        } else {
+          addGuestTransaction(payload);
+          toast.success('Transaksi berhasil disimpan');
+        }
+        if (onSave) onSave();
+        onClose();
+        return;
+      }
+
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast.error('Sesi berakhir, silakan login kembali.');
+        return;
+      }
+
+      const dbPayload = { ...payload, user_id: user.id };
+
       if (transaction) {
         const { error } = await supabase
           .from('transactions')
-          .update(payload)
+          .update(dbPayload)
           .eq('id', transaction.id);
 
         if (error) throw error;
@@ -91,7 +105,7 @@ export default function TransactionModal({ isOpen, onClose, type = 'expense', tr
       } else {
         const { error } = await supabase
           .from('transactions')
-          .insert([payload]);
+          .insert([dbPayload]);
 
         if (error) throw error;
         toast.success('Transaksi berhasil disimpan');

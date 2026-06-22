@@ -1,10 +1,6 @@
-/* --- Layout.css Master Modern --- */
-
-/* 1. Header & Glassmorphism Effect */
 .header {
   position: sticky;
   top: 0;
-  /* Paksa paling depan */
   z-index: 9999 !important;
   background: rgba(255, 255, 255, 0.85);
   backdrop-filter: blur(12px);
@@ -13,7 +9,6 @@
 
 .header-container {
   max-width: 1100px;
-  /* Menjaga konten tetap di pusat perhatian */
   margin: 0 auto;
   padding: 0 40px;
 }
@@ -25,7 +20,6 @@
   height: 80px;
 }
 
-/* 2. Sisi Kiri: Branding & Logo Baru */
 .logo-brand {
   display: flex;
   align-items: center;
@@ -38,7 +32,6 @@
   align-items: center;
   justify-content: center;
   width: 42px;
-  /* Ukuran yang pas untuk logo Nano Banana */
   height: 42px;
   transition: transform 0.3s ease;
 }
@@ -66,7 +59,6 @@
   color: #3b82f6;
 }
 
-/* 3. Sisi Tengah: Navigation (Floating Tab Style) */
 .desktop-nav {
   display: flex;
   align-items: center;
@@ -100,7 +92,6 @@
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
 }
 
-/* 4. Sisi Kanan: Logout Action */
 .header-actions {
   display: flex;
   justify-content: flex-end;
@@ -129,10 +120,8 @@
   box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2);
 }
 
-/* 5. Main Content Area */
 .main-content {
   background-color: #f8fafc;
-  /* Kontras lembut dengan Header */
   min-height: calc(100vh - 80px);
 }
 
@@ -142,16 +131,17 @@
   padding: 40px;
 }
 
-/* 6. Responsivitas Mobile (Compact Header) */
+.bottom-nav {
+  display: none;
+}
+
 @media (max-width: 768px) {
   .header-container {
     padding: 0 16px;
   }
 
-  /* Tetap tampilkan navigasi di atas, tapi hilangkan teks agar muat */
   .nav-link span,
-  .logout-btn-premium span,
-  .app-title span {
+  .logout-btn-premium span {
     display: none;
   }
 
@@ -165,15 +155,105 @@
   }
 
   .header-content {
-    height: 64px;
+    height: 56px;
   }
 
   .logo-wrapper {
-    width: 32px;
-    height: 32px;
+    width: 28px;
+    height: 28px;
+  }
+
+  .app-title {
+    font-size: 1.1rem;
+  }
+
+  .app-title span {
+    display: inline !important;
   }
 
   .main-container {
-    padding: 20px 16px;
+    padding: 16px;
+    padding-bottom: 80px;
   }
+
+  .main-content {
+    min-height: calc(100vh - 56px);
+  }
+
+  .header-actions {
+    display: none;
+  }
+
+  .bottom-nav {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 9999;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(12px);
+    border-top: 1px solid rgba(0, 0, 0, 0.08);
+    padding: 6px 0;
+    padding-bottom: max(6px, env(safe-area-inset-bottom));
+    justify-content: space-around;
+    align-items: center;
+  }
+
+  .bottom-nav-link {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 6px 12px;
+    border-radius: 12px;
+    color: #94a3b8;
+    text-decoration: none;
+    font-size: 0.65rem;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    background: none;
+    border: none;
+    cursor: pointer;
+    min-width: 56px;
+  }
+
+  .bottom-nav-link span {
+    font-size: 0.6rem;
+  }
+
+  .bottom-nav-link.active {
+    color: #3b82f6;
+  }
+
+  .bottom-nav-link.logout {
+    color: #fca5a5;
+  }
+
+  .bottom-nav-link.logout.active {
+    color: #ef4444;
+  }
+
+  .bottom-nav-link:active {
+    transform: scale(0.92);
+  }
+
+  .guest-badge {
+    font-size: 0.6rem;
+  }
+}
+
+.guest-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: white;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  line-height: 1.4;
+  margin-left: 6px;
+  flex-shrink: 0;
 }
