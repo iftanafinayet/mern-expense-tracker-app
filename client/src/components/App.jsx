@@ -39,7 +39,8 @@ export default function App() {
     return isAuthed ? <>{children}</> : <Navigate to="/login" />;
   };
 
-  const PublicRoute = ({ children }) => {
+  const PublicRoute = ({ children, allowGuest }) => {
+    if (allowGuest && isGuestMode()) return <>{children}</>;
     return isAuthed ? <Navigate to="/" /> : <>{children}</>;
   };
 
@@ -62,7 +63,7 @@ export default function App() {
           />
           <Route
             path="/register"
-            element={<PublicRoute><Register /></PublicRoute>}
+            element={<PublicRoute allowGuest><Register /></PublicRoute>}
           />
 
           <Route

@@ -1,99 +1,75 @@
 import { useState, useEffect } from 'react';
-import { PlusCircle, TrendingUp, TrendingDown, DollarSign, ShoppingBag, Car, Home, Coffee, Briefcase, Heart, X } from 'lucide-react';
-import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
+import { createPortal } from 'react-dom';
 import { supabase } from '../../supabaseClient';
 import { isGuestMode, getGuestTransactions } from '../../utils/guestStorage';
 import TransactionModal from './TransactionModal.jsx';
 import '../styles/Dashboard.css';
 
-const iconMap = {
-  'Food': ShoppingBag,
-  'Transport': Car,
-  'Utilities': Home,
-  'Entertainment': Coffee,
-  'Salary': Briefcase,
-  'Freelance': Briefcase,
-  'Investment': TrendingUp,
-  'Gift': Heart,
-  'Health': Heart,
-  'Shopping': ShoppingBag,
-  'Other': ShoppingBag,
+const COLORS = ['#E11D48', '#D97706', '#059669', '#1d4ed8', '#8b5cf6', '#0891b2'];
+const ICON_MAP = {
+  Food: 'restaurant', Transport: 'directions_car', Utilities: 'bolt',
+  Entertainment: 'movie', Health: 'favorite', Shopping: 'shopping_bag',
+  Salary: 'work', Freelance: 'work', Investment: 'trending_up',
+  Gift: 'card_giftcard', Other: 'more_horiz',
 };
 
 const generateCategoryData = (transactions) => {
-  const categoryMap = {};
-  const colors = ['#ef4444', '#f59e0b', '#3b82f6', '#10b981', '#8b5cf6', '#ec4899', '#6b7280', '#06b6d4'];
-
-  transactions
-    .filter(t => t.type === 'expense')
-    .forEach(t => {
-      const category = t.category || 'Other';
-      if (!categoryMap[category]) {
-        categoryMap[category] = {
-          value: 0,
-          color: colors[Object.keys(categoryMap).length % colors.length]
-        };
-      }
-      categoryMap[category].value += Math.abs(t.amount);
-    });
-
-  return Object.entries(categoryMap).map(([name, data]) => ({
-    name,
-    value: parseFloat(data.value.toFixed(2)),
-    fill: data.color,
-  }));
+  const map = {};
+  transactions.filter(t => t.type === 'expense').forEach(t => {
+    const cat = t.category || 'Other';
+    if (!map[cat]) map[cat] = { value: 0, color: COLORS[Object.keys(map).length % COLORS.length] };
+    map[cat].value += Math.abs(Number(t.amount));
+  });
+  return Object.entries(map).map(([name, d]) => ({ name, value: parseFloat(d.value.toFixed(2)), fill: d.color }));
 };
 
-const calculateMonthlyStats = (transactions) => {
-  const now = new Date();
-  const currentMonth = now.getMonth();
-  const currentYear = now.getFullYear();
-
-  const lastMonthDate = new Date(currentYear, currentMonth - 1, 1);
-  const lastMonth = lastMonthDate.getMonth();
-  const lastMonthYear = lastMonthDate.getFullYear();
-
-  const currentMonthTransactions = transactions.filter(t => {
-    const date = new Date(t.date);
-    return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
-  });
-
-  const lastMonthTransactions = transactions.filter(t => {
-    const date = new Date(t.date);
-    return date.getMonth() === lastMonth && date.getFullYear() === lastMonthYear;
-  });
-
-  const currentIncome = currentMonthTransactions.filter(t => t.type === 'income').reduce((sum, t) => sum + Number(t.amount), 0);
-  const currentExpense = Math.abs(currentMonthTransactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + Number(t.amount), 0));
-  const lastIncome = lastMonthTransactions.filter(t => t.type === 'income').reduce((sum, t) => sum + Number(t.amount), 0);
-  const lastExpense = Math.abs(lastMonthTransactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + Number(t.amount), 0));
-
-  const incomeChange = lastIncome === 0 ? 0 : ((currentIncome - lastIncome) / lastIncome) * 100;
-  const expenseChange = lastExpense === 0 ? 0 : ((currentExpense - lastExpense) / lastExpense) * 100;
-
-  return { currentIncome, currentExpense, incomeChange: incomeChange.toFixed(1), expenseChange: expenseChange.toFixed(1) };
+const calculateMonthlyStats = (tx) => {
+  const now = new Date(), cm = now.getMonth(), cy = now.getFullYear();
+  const lm = cm === 0 ? 11 : cm - 1, ly = cm === 0 ? cy - 1 : cy;
+  const curMonth = tx.filter(t => { const d = new Date(t.date); return d.getMonth() === cm && d.getFullYear() === cy; });
+  const lastMonth = tx.filter(t => { const d = new Date(t.date); return d.getMonth() === lm && d.getFullYear() === ly; });
+  const curIncome = curMonth.filter(t => t.type === 'income').reduce((s, t) => s + Number(t.amount), 0);
+  const curExpense = Math.abs(curMonth.filter(t => t.type === 'expense').reduce((s, t) => s + Number(t.amount), 0));
+  const lastIncome = lastMonth.filter(t => t.type === 'income').reduce((s, t) => s + Number(t.amount), 0);
+  const lastExpense = Math.abs(lastMonth.filter(t => t.type === 'expense').reduce((s, t) => s + Number(t.amount), 0));
+  return {
+    currentIncome: curIncome, currentExpense: curExpense,
+    incomeChange: lastIncome ? ((curIncome - lastIncome) / lastIncome * 100).toFixed(1) : '0.0',
+    expenseChange: lastExpense ? ((curExpense - lastExpense) / lastExpense * 100).toFixed(1) : '0.0',
+  };
 };
 
-const generateBarChartData = (transactions) => {
-  const monthlyMap = {};
-  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
-
-  const sorted = [...transactions].sort((a, b) => new Date(a.date) - new Date(b.date));
-
-  sorted.forEach(t => {
-    const date = new Date(t.date);
-    const monthKey = `${monthNames[date.getMonth()]} ${date.getFullYear()}`;
-
-    if (!monthlyMap[monthKey]) {
-      monthlyMap[monthKey] = { name: monthKey, Pemasukan: 0, Pengeluaran: 0 };
-    }
-
-    const amt = Math.abs(Number(t.amount));
-    if (t.type === 'income') monthlyMap[monthKey].Pemasukan += amt;
-    else monthlyMap[monthKey].Pengeluaran += amt;
+function DoughnutChart({ data, total }) {
+  const radius = 70, circumference = 2 * Math.PI * radius;
+  let offset = 0;
+  const arcs = data.map(d => {
+    const segment = (d.value / total) * circumference;
+    const dashOffset = circumference - offset;
+    offset += segment;
+    return { ...d, dashArray: `${segment} ${circumference - segment}`, dashOffset };
   });
+  return (
+    <div className="doughnut-wrapper">
+      <svg viewBox="0 0 160 160" className="doughnut-svg">
+        <circle cx="80" cy="80" r={radius} fill="none" stroke="var(--surface-container)" strokeWidth="12" />
+        {arcs.map((a, i) => (
+          <circle key={i} cx="80" cy="80" r={radius} fill="none" stroke={a.fill} strokeWidth="12"
+            strokeDasharray={a.dashArray} strokeDashoffset={a.dashOffset}
+            strokeLinecap="round" transform="rotate(-90 80 80)"
+            style={{ transition: 'stroke-dashoffset 0.5s ease' }}
+          />
+        ))}
+      </svg>
+      <div className="doughnut-center">
+        <p className="doughnut-center-label">Total</p>
+        <p className="doughnut-center-value">{formatCurrency(total)}</p>
+      </div>
+    </div>
+  );
+}
 
-  return Object.values(monthlyMap).slice(-6);
+const formatCurrency = (amount) => {
+  return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(amount);
 };
 
 export default function Dashboard() {
@@ -102,185 +78,139 @@ export default function Dashboard() {
   const [transactions, setTransactions] = useState([]);
   const [fabOpen, setFabOpen] = useState(false);
 
-  const fetchDashboardData = async () => {
+  const fetchData = async () => {
     try {
-      if (isGuestMode()) {
-        setTransactions(getGuestTransactions());
-        return;
-      }
-
+      if (isGuestMode()) { setTransactions(getGuestTransactions()); return; }
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-
-      const { data, error } = await supabase
-        .from('transactions')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('date', { ascending: false });
-
+      const { data, error } = await supabase.from('transactions').select('*').eq('user_id', user.id).order('date', { ascending: false });
       if (error) throw error;
       setTransactions(data || []);
-    } catch (error) {
-      console.error('Error fetching data:', error.message);
-    }
+    } catch (e) { console.error(e.message); }
   };
 
-  useEffect(() => { fetchDashboardData(); }, []);
+  useEffect(() => { fetchData(); }, []);
 
   const categoryData = generateCategoryData(transactions);
-  const barData = generateBarChartData(transactions);
-  const monthlyStats = calculateMonthlyStats(transactions);
-  const totalBalance = transactions.reduce((acc, t) => acc + Number(t.amount), 0);
-  const totalExpenseThisMonth = categoryData.reduce((sum, item) => sum + item.value, 0);
+  const stats = calculateMonthlyStats(transactions);
+  const totalBalance = transactions.reduce((s, t) => s + Number(t.amount), 0);
+  const totalExpense = categoryData.reduce((s, i) => s + i.value, 0);
+  const recentTxs = transactions.slice(0, 5);
 
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('id-ID', {
-      style: 'currency', currency: 'IDR', minimumFractionDigits: 0
-    }).format(amount);
-  };
+  const openModal = (type) => { setModalType(type); setIsModalOpen(true); setFabOpen(false); };
 
-  const openModal = (type) => {
-    setModalType(type);
-    setIsModalOpen(true);
-    setFabOpen(false);
-  };
+  const fabContent = (
+    <>
+      <div className={`fab-overlay ${fabOpen ? 'active' : ''}`} onClick={() => setFabOpen(false)} />
+      <div className={`fab-menu ${fabOpen ? 'active' : ''}`}>
+        <button onClick={() => openModal('income')} className="fab-opt income">
+          <span className="material-symbols-outlined">add_circle</span> Tambah Pemasukan
+        </button>
+        <button onClick={() => openModal('expense')} className="fab-opt expense">
+          <span className="material-symbols-outlined">remove_circle</span> Tambah Pengeluaran
+        </button>
+      </div>
+      <button className={`fab ${fabOpen ? 'active' : ''}`} onClick={() => setFabOpen(!fabOpen)}>
+        <span className="material-symbols-outlined">{fabOpen ? 'close' : 'add'}</span>
+      </button>
+    </>
+  );
 
   return (
     <div className="dashboard fade-in">
-      <div className="summary-cards">
-        <div className="summary-card balance-card">
-          <div className="summary-header"><p>Total Balance</p><DollarSign size={32} /></div>
-          <h2 className="summary-amount">{formatCurrency(totalBalance)}</h2>
-          <p className="summary-label">Saldo Keseluruhan</p>
+      {createPortal(fabContent, document.body)}
+      <section className="balance-card">
+        <div className="balance-top">
+          <div>
+            <p className="balance-label">Total Saldo</p>
+            <h1 className="balance-amount">{formatCurrency(totalBalance)}</h1>
+            <p className="balance-note">Saldo Keseluruhan</p>
+          </div>
+          <div className="balance-icon-wrap">
+            <span className="material-symbols-outlined">payments</span>
+          </div>
         </div>
+      </section>
 
-        <div className="summary-card income-card">
-          <div className="summary-header"><p>Pemasukan (Bulan Ini)</p><TrendingUp size={32} /></div>
-          <h2 className="summary-amount">{formatCurrency(monthlyStats.currentIncome)}</h2>
-          <p className="summary-change income">{monthlyStats.incomeChange}% dari bln lalu</p>
+      <div className="stats-grid">
+        <div className="stat-card income">
+          <div className="stat-header">
+            <p className="stat-label">Pemasukan</p>
+            <span className="material-symbols-outlined stat-icon">trending_up</span>
+          </div>
+          <h3 className="stat-value">{formatCurrency(stats.currentIncome)}</h3>
+          <p className="stat-change positive">{stats.incomeChange}% dari bln lalu</p>
         </div>
-
-        <div className="summary-card expense-card">
-          <div className="summary-header"><p>Pengeluaran (Bulan Ini)</p><TrendingDown size={32} /></div>
-          <h2 className="summary-amount">{formatCurrency(monthlyStats.currentExpense)}</h2>
-          <p className="summary-change expense">↑{monthlyStats.expenseChange}% dari bln lalu</p>
+        <div className="stat-card expense">
+          <div className="stat-header">
+            <p className="stat-label">Pengeluaran</p>
+            <span className="material-symbols-outlined stat-icon">trending_down</span>
+          </div>
+          <h3 className="stat-value">{formatCurrency(stats.currentExpense)}</h3>
+          <p className="stat-change negative">↑{stats.expenseChange}% dari bln lalu</p>
         </div>
       </div>
 
       <div className="quick-actions">
-        <button onClick={() => openModal('income')} className="btn btn-income action-btn">
-          <PlusCircle size={24} /> <span>Add Income</span>
+        <button onClick={() => openModal('income')} className="qa-btn income">
+          <span className="material-symbols-outlined">add_circle</span> Tambah Pemasukan
         </button>
-        <button onClick={() => openModal('expense')} className="btn btn-expense action-btn">
-          <PlusCircle size={24} /> <span>Add Expense</span>
+        <button onClick={() => openModal('expense')} className="qa-btn expense">
+          <span className="material-symbols-outlined">remove_circle</span> Tambah Pengeluaran
         </button>
       </div>
 
-      <div className="dashboard-grid">
-        <div className="card" style={{ display: 'flex', flexDirection: 'column', minHeight: '380px', maxHeight: '380px' }}>
-          <h3 className="card-title">Recent Transactions</h3>
-          <div className="transactions-list" style={{ flex: 1, overflowY: 'auto', paddingRight: '4px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {transactions.length === 0 ? (
-              <p style={{ textAlign: 'center', color: '#999', padding: '20px' }}>No transactions yet</p>
-            ) : (
-              transactions.map((t) => {
-                const Icon = iconMap[t.category] || ShoppingBag;
-                return (
-                  <div key={t.id} className="transaction-item" style={{ marginBottom: '0' }}>
-                    <div className="transaction-left">
-                      <div className={`transaction-icon ${t.type}`}><Icon size={24} /></div>
-                      <div className="transaction-info">
-                        <p className="transaction-title">{t.title || t.description}</p>
-                        <p className="transaction-date">
-                          {new Date(t.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'numeric', year: 'numeric' })}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="transaction-right">
-                      <p className={`transaction-amount ${t.type}`}>
-                        {t.type === 'income' ? '+' : '-'}{formatCurrency(Math.abs(t.amount))}
-                      </p>
-                    </div>
+      <section className="tonal-card">
+        <h2 className="section-title">Pengeluaran per Kategori</h2>
+        {categoryData.length === 0 ? (
+          <p className="empty-text">Belum ada data pengeluaran</p>
+        ) : (
+          <div className="category-chart">
+            <DoughnutChart data={categoryData} total={totalExpense} />
+            <div className="category-list">
+              {categoryData.map((c, i) => (
+                <div key={c.name} className="category-item">
+                  <div className="category-left">
+                    <span className="cat-dot" style={{ background: c.fill }} />
+                    <span className="cat-name">{c.name}</span>
                   </div>
-                );
-              })
-            )}
-          </div>
-        </div>
-
-        <div className="card" style={{ display: 'flex', flexDirection: 'column', minHeight: '380px', maxHeight: '380px' }}>
-          <h3 className="card-title">Expense by Category</h3>
-          {categoryData.length === 0 ? (
-            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><p style={{ color: '#999' }}>No expense data</p></div>
-          ) : (
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '20px' }}>
-              <div style={{ position: 'relative', width: '100%', height: '180px' }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie data={categoryData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value" cornerRadius={6}>
-                      {categoryData.map((entry, index) => (<Cell key={`cell-${index}`} fill={entry.fill} stroke="none" />))}
-                    </Pie>
-                    <Tooltip formatter={(v) => formatCurrency(v)} />
-                  </PieChart>
-                </ResponsiveContainer>
-                <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', textAlign: 'center', pointerEvents: 'none' }}>
-                  <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>Total</p>
-                  <p style={{ fontSize: '15px', fontWeight: 'bold', margin: 0, color: '#333' }}>{formatCurrency(totalExpenseThisMonth)}</p>
+                  <span className="cat-value">{formatCurrency(c.value)}</span>
                 </div>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', padding: '0 20px' }}>
-                {categoryData.slice(0, 5).map((cat) => (
-                  <div key={cat.name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: cat.fill }} />
-                      <span style={{ color: '#555', fontSize: '13px' }}>{cat.name}</span>
-                    </div>
-                    <span style={{ fontWeight: '600', fontSize: '13px' }}>{formatCurrency(cat.value)}</span>
-                  </div>
-                ))}
-              </div>
+              ))}
             </div>
-          )}
+          </div>
+        )}
+      </section>
+
+      <section className="tonal-card">
+        <div className="recent-header">
+          <h2 className="section-title">Transaksi Terbaru</h2>
+          <span className="see-all">Lihat Semua</span>
         </div>
-      </div>
-
-      <div className="card">
-        <h3 className="card-title">Tren Keuangan (6 Bulan Terakhir)</h3>
-        <div style={{ width: '100%', height: 300, marginTop: '20px' }}>
-          <ResponsiveContainer>
-            <BarChart data={barData} margin={{ top: 10, right: 30, left: 10, bottom: 5 }} barGap={8}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
-              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#666' }} />
-              <YAxis hide={true} />
-              <Tooltip cursor={{ fill: 'rgba(0,0,0,0.03)' }} formatter={(v) => formatCurrency(v)} />
-              <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px' }} />
-              <Bar dataKey="Pemasukan" fill="#10b981" radius={[10, 10, 0, 0]} maxBarSize={40} />
-              <Bar dataKey="Pengeluaran" fill="#ef4444" radius={[10, 10, 0, 0]} maxBarSize={40} />
-            </BarChart>
-          </ResponsiveContainer>
+        <div className="recent-list">
+          {recentTxs.length === 0 ? (
+            <p className="empty-text">Belum ada transaksi</p>
+          ) : recentTxs.map(t => {
+            const icon = ICON_MAP[t.category] || 'more_horiz';
+            return (
+              <div key={t.id} className="tx-item">
+                <div className={`tx-icon-wrap ${t.type}`}>
+                  <span className="material-symbols-outlined filled">{icon}</span>
+                </div>
+                <div className="tx-info">
+                  <p className="tx-title">{t.title || t.description}</p>
+                  <p className="tx-date">{new Date(t.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+                </div>
+                <span className={`tx-amount ${t.type}`}>
+                  {t.type === 'income' ? '+' : '-'}{formatCurrency(Math.abs(t.amount))}
+                </span>
+              </div>
+            );
+          })}
         </div>
-      </div>
+      </section>
 
-      <TransactionModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} type={modalType} onSave={fetchDashboardData} />
-
-      <div className={`fab-overlay ${fabOpen ? 'active' : ''}`} onClick={() => setFabOpen(false)} />
-      <div className={`fab-menu ${fabOpen ? 'active' : ''}`}>
-        <button onClick={() => openModal('income')} className="fab-option income">
-          <TrendingUp size={20} />
-          <span>Add Income</span>
-        </button>
-        <button onClick={() => openModal('expense')} className="fab-option expense">
-          <TrendingDown size={20} />
-          <span>Add Expense</span>
-        </button>
-      </div>
-      <button
-        className={`fab ${fabOpen ? 'active' : ''}`}
-        onClick={() => setFabOpen(!fabOpen)}
-        aria-label="Add transaction"
-      >
-        {fabOpen ? <X size={28} /> : <PlusCircle size={28} />}
-      </button>
+      <TransactionModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} type={modalType} onSave={fetchData} />
     </div>
   );
 }

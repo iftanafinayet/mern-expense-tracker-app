@@ -1,189 +1,129 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { User, Mail, Lock, Eye, EyeOff } from 'lucide-react'; // Hapus Wallet
 import { toast } from 'sonner';
 import { supabase } from '../../supabaseClient';
+import { isGuestMode, getGuestTransactions, disableGuestMode } from '../../utils/guestStorage';
 import '../styles/Register.css';
-
-// Import Logo Baru Kamu
 import LogoGua from './../../LogoMD.svg';
 
 export default function Register() {
   const navigate = useNavigate();
-  const [formData, setFormData] = useState({
-    username: '',
-    email: '',
-    password: '',
-    confirmPassword: '',
-  });
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [form, setForm] = useState({ username: '', email: '', password: '', confirmPassword: '' });
+  const [showPw, setShowPw] = useState(false);
+  const [showCp, setShowCp] = useState(false);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
 
-  const validateForm = () => {
-    const newErrors = {};
-
-    if (!formData.username) {
-      newErrors.username = 'Username is required';
-    } else if (formData.username.length < 3) {
-      newErrors.username = 'Username must be at least 3 characters';
-    }
-
-    if (!formData.email) {
-      newErrors.email = 'Email is required';
-    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = 'Email is invalid';
-    }
-
-    if (!formData.password) {
-      newErrors.password = 'Password is required';
-    } else if (formData.password.length < 6) {
-      newErrors.password = 'Password must be at least 6 characters';
-    }
-
-    if (!formData.confirmPassword) {
-      newErrors.confirmPassword = 'Please confirm your password';
-    } else if (formData.password !== formData.confirmPassword) {
-      newErrors.confirmPassword = 'Passwords do not match';
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+  const validate = () => {
+    const e = {};
+    if (!form.username || form.username.length < 3) e.username = 'Minimal 3 karakter';
+    if (!form.email || !/\S+@\S+\.\S+/.test(form.email)) e.email = 'Email tidak valid';
+    if (!form.password || form.password.length < 6) e.password = 'Minimal 6 karakter';
+    if (!form.confirmPassword) e.confirmPassword = 'Konfirmasi kata sandi';
+    else if (form.password !== form.confirmPassword) e.confirmPassword = 'Kata sandi tidak cocok';
+    setErrors(e);
+    return Object.keys(e).length === 0;
   };
 
-  const handleSubmit = (e) => {
+  const migrateGuestData = async (userId) => {
+    const guestTx = getGuestTransactions();
+    if (!guestTx.length) return;
+
+    const payload = guestTx.map(t => ({
+      user_id: userId,
+      title: t.title,
+      amount: t.amount,
+      type: t.type,
+      category: t.category,
+      date: t.date,
+      description: t.description || '',
+    }));
+
+    const { error } = await supabase.from('transactions').insert(payload);
+    if (!error) {
+      localStorage.removeItem('dompetgua_guest_transactions');
+    }
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (validateForm()) {
-      registerUser();
-    }
-  };
-
-  const registerUser = async () => {
+    if (!validate()) return;
     setLoading(true);
     try {
-      const { data, error: authError } = await supabase.auth.signUp({
-        email: formData.email,
-        password: formData.password,
-        options: {
-          data: {
-            username: formData.username,
-          }
-        }
+      const isGuest = isGuestMode();
+      const guestTx = isGuest ? getGuestTransactions() : [];
+
+      const { data, error } = await supabase.auth.signUp({
+        email: form.email, password: form.password,
+        options: { data: { username: form.username } },
       });
+      if (error) throw error;
 
-      if (authError) throw authError;
+      if (isGuest && data?.user && guestTx.length) {
+        await migrateGuestData(data.user.id);
+        disableGuestMode();
+        toast.success('Data tamu berhasil dipindahkan!', { description: 'Transaksi kamu sudah disimpan.' });
+        window.location.href = '/';
+        return;
+      }
 
-      // --- PERUBAHAN DISINI ---
-      toast.success('Pendaftaran berhasil! Silakan cek email kamu.');
-      navigate('/verify-email'); // Arahkan ke halaman instruksi cek email
+      if (isGuest) {
+        localStorage.setItem('dompetgua_pending_migration', JSON.stringify(guestTx));
+        disableGuestMode();
+      }
 
-    } catch (error) {
-      toast.error(error.message);
+      toast.success('Pendaftaran berhasil! Cek email kamu.');
+      navigate('/verify-email');
+    } catch (err) {
+      toast.error(err.message);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="register-container fade-in">
-      <div className="register-wrapper">
-        <div className="register-header">
-          <div className="logo-container">
-            {/* Pakai Logo Baru Kamu dengan animasi bounce loading */}
-            <img src={LogoGua} alt="DompetGua" className="loading-logo-bounce" style={{ width: '80px' }} />
-          </div>
-          <h1 className="register-title">Create Account</h1>
-          <p className="register-subtitle">Start tracking your expenses today</p>
+    <div className="register-page">
+      <main className="register-main">
+        <div className="register-logo">
+          <img src={LogoGua} alt="DompetGua" className="register-logo-img" />
+          <h1 className="register-title">Buat Akun</h1>
+          <p className="register-subtitle">Mulai catat pengeluaranmu sekarang</p>
         </div>
 
         <div className="register-card">
-          <form onSubmit={handleSubmit} className="register-form">
-            <div className="input-group">
-              <label className="input-label">Username / Full Name</label>
-              <div className="input-wrapper">
-                <User className="input-icon" size={20} />
-                <input
-                  type="text"
-                  value={formData.username}
-                  onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                  className={`input-field ${errors.username ? 'error' : ''}`}
-                  placeholder="johndoe"
-                />
+          <form onSubmit={handleSubmit}>
+            {[
+              { id: 'username', label: 'Nama Lengkap', icon: 'person', type: 'text',               placeholder: 'Nama kamu' },
+              { id: 'email', label: 'Email', icon: 'mail', type: 'email', placeholder: 'email@example.com' },
+              { id: 'password', label: 'Kata Sandi', icon: 'lock', type: showPw ? 'text' : 'password', placeholder: 'Minimal 6 karakter', toggle: () => setShowPw(!showPw), icon2: showPw ? 'visibility_off' : 'visibility' },
+              { id: 'confirmPassword', label: 'Konfirmasi Kata Sandi', icon: 'lock', type: showCp ? 'text' : 'password', placeholder: 'Ulangi kata sandi', toggle: () => setShowCp(!showCp), icon2: showCp ? 'visibility_off' : 'visibility' },
+            ].map(f => (
+              <div className="reg-field" key={f.id}>
+                <label className="reg-label">{f.label}</label>
+                <div className="reg-input-wrap">
+                  <span className="material-symbols-outlined reg-input-icon">{f.icon}</span>
+                  <input type={f.type} className={`reg-input ${errors[f.id] ? 'error' : ''}`} placeholder={f.placeholder}
+                    value={form[f.id]} onChange={e => setForm(p => ({ ...p, [f.id]: e.target.value }))} />
+                  {f.toggle && (
+                    <button type="button" className="reg-pw-toggle" onClick={f.toggle}>
+                      <span className="material-symbols-outlined">{f.icon2}</span>
+                    </button>
+                  )}
+                </div>
+                {errors[f.id] && <p className="reg-error">{errors[f.id]}</p>}
               </div>
-              {errors.username && <p className="error-message">{errors.username}</p>}
-            </div>
+            ))}
 
-            <div className="input-group">
-              <label className="input-label">Email</label>
-              <div className="input-wrapper">
-                <Mail className="input-icon" size={20} />
-                <input
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className={`input-field ${errors.email ? 'error' : ''}`}
-                  placeholder="your.email@example.com"
-                />
-              </div>
-              {errors.email && <p className="error-message">{errors.email}</p>}
-            </div>
-
-            <div className="input-group">
-              <label className="input-label">Password</label>
-              <div className="input-wrapper">
-                <Lock className="input-icon" size={20} />
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  className={`input-field ${errors.password ? 'error' : ''}`}
-                  placeholder="Minimum 6 characters"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="password-toggle"
-                >
-                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                </button>
-              </div>
-              {errors.password && <p className="error-message">{errors.password}</p>}
-            </div>
-
-            <div className="input-group">
-              <label className="input-label">Confirm Password</label>
-              <div className="input-wrapper">
-                <Lock className="input-icon" size={20} />
-                <input
-                  type={showConfirmPassword ? 'text' : 'password'}
-                  value={formData.confirmPassword}
-                  onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
-                  className={`input-field ${errors.confirmPassword ? 'error' : ''}`}
-                  placeholder="Confirm your password"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="password-toggle"
-                >
-                  {showConfirmPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                </button>
-              </div>
-              {errors.confirmPassword && <p className="error-message">{errors.confirmPassword}</p>}
-            </div>
-
-            <button type="submit" className="btn btn-primary btn-block btn-save" disabled={loading}>
-              {loading ? 'Creating account...' : 'Sign Up'}
+            <button type="submit" className="reg-submit" disabled={loading}>
+              {loading ? 'Mendaftarkan...' : 'Daftar'}
             </button>
-          </form>
 
-          <p className="login-link">
-            Already have an account?{' '}
-            <Link to="/login" className="link-primary">Login</Link>
-          </p>
+            <p className="reg-redirect">
+              Sudah punya akun? <Link to="/login" className="reg-link">Masuk</Link>
+            </p>
+          </form>
         </div>
-      </div>
+      </main>
     </div>
   );
 }

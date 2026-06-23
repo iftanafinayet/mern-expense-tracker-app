@@ -1,53 +1,56 @@
-.auth-container {
+.auth-page {
   min-height: 100vh;
-  background: linear-gradient(135deg, #dbeafe 0%, #e0e7ff 100%);
+  background: linear-gradient(135deg, #f8f9ff 0%, #eff4ff 100%);
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 20px;
+  font-family: 'Hanken Grotesk', sans-serif;
+}
+
+.auth-main {
+  width: 100%;
+  max-width: 400px;
 }
 
 .auth-card {
-  background-color: var(--white);
-  border-radius: var(--radius-2xl);
-  box-shadow: var(--shadow-xl);
-  padding: var(--spacing-8);
-  width: 100%;
-}
-
-.auth-header {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  border-radius: 16px;
+  padding: 32px;
+  box-shadow: 0 4px 12px -2px rgba(30, 41, 59, 0.08);
   text-align: center;
-  margin-bottom: var(--spacing-6);
 }
 
-.auth-header h2 {
-  font-size: 1.5rem;
-  color: var(--gray-900);
-  margin: 16px 0 8px;
+.auth-logo-img {
+  width: 60px;
+  margin-bottom: 16px;
 }
 
-.auth-header p {
-  color: var(--gray-600);
-  font-size: 0.95rem;
-  line-height: 1.6;
+.auth-card h2 {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--on-surface);
+  margin-bottom: 8px;
 }
 
-.verify-card {
-  text-align: center;
-  max-width: 400px !important;
-  padding: 40px !important;
+.auth-card p {
+  font-size: 16px;
+  color: var(--on-surface-variant);
+  line-height: 1.5;
 }
 
-.verify-icon-wrapper {
-  margin: 30px 0;
+.verify-icon-wrap {
+  margin: 24px 0;
   display: flex;
   justify-content: center;
 }
 
-.icon-circle {
-  width: 80px;
-  height: 80px;
-  background: rgba(59, 130, 246, 0.1);
+.verify-icon-circle {
+  width: 72px;
+  height: 72px;
+  background: rgba(0, 55, 176, 0.08);
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -55,81 +58,63 @@
   animation: pulse-blue 2s infinite;
 }
 
+.verify-icon-circle .material-symbols-outlined {
+  font-size: 36px;
+  color: var(--primary);
+}
+
 .verify-footer p {
-  color: var(--gray-500);
-  font-size: 0.9rem;
+  font-size: 14px;
+  color: var(--secondary);
   margin-bottom: 12px;
 }
 
 .btn-back-login {
-  margin-top: 20px;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 8px;
-  color: #3b82f6;
+  padding: 12px 24px;
+  border-radius: 12px;
+  background: var(--primary);
+  color: white;
+  font-family: 'Hanken Grotesk', sans-serif;
+  font-size: 14px;
   font-weight: 600;
-  background: none;
   border: none;
   cursor: pointer;
-  width: 100%;
-  justify-content: center;
-  padding: 12px;
-  border-radius: 12px;
-  transition: background-color 0.2s;
+  transition: all 0.2s;
 }
 
 .btn-back-login:hover {
-  background: rgba(59, 130, 246, 0.05);
+  background: var(--on-primary-fixed-variant);
+}
+
+.btn-back-login:active {
+  transform: scale(0.97);
+}
+
+.btn-back-login .material-symbols-outlined {
+  font-size: 18px;
 }
 
 @keyframes pulse-blue {
-  0% {
-    transform: scale(0.95);
-    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4);
-  }
-  70% {
-    transform: scale(1);
-    box-shadow: 0 0 0 15px rgba(59, 130, 246, 0);
-  }
-  100% {
-    transform: scale(0.95);
-    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0);
-  }
+  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(0, 55, 176, 0.3); }
+  70% { transform: scale(1); box-shadow: 0 0 0 12px rgba(0, 55, 176, 0); }
+  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(0, 55, 176, 0); }
 }
 
 @media (max-width: 480px) {
-  .auth-container {
-    padding: 0;
+  .auth-page {
+    padding: 0 12px;
     align-items: flex-end;
   }
 
-  .verify-card {
-    border-radius: var(--radius-2xl) var(--radius-2xl) 0 0 !important;
-    padding: 30px 20px !important;
-    margin: 0;
-    max-width: 100% !important;
-    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.08);
+  .auth-main {
+    max-width: 100%;
   }
 
-  .auth-header h2 {
-    font-size: 1.3rem;
-  }
-
-  .auth-header p {
-    font-size: 0.9rem;
-  }
-
-  .icon-circle {
-    width: 64px;
-    height: 64px;
-  }
-
-  .icon-circle svg {
-    width: 32px;
-    height: 32px;
-  }
-
-  .verify-icon-wrapper {
-    margin: 20px 0;
+  .auth-card {
+    border-radius: 16px 16px 0 0;
+    padding: 20px 16px;
   }
 }

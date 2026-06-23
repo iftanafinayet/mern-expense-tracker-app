@@ -1,24 +1,19 @@
 import { useState, useEffect } from 'react';
-import { Search, PlusCircle, Edit2, Trash2, ShoppingBag, Calendar, TrendingUp, Filter } from 'lucide-react';
+import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import { supabase } from '../../supabaseClient';
 import { isGuestMode, getGuestTransactions, deleteGuestTransaction } from '../../utils/guestStorage';
 import TransactionModal from './TransactionModal.jsx';
 import '../styles/Transactions.css';
 
-const iconMap = {
-  'Food': ShoppingBag,
-  'Transport': ShoppingBag,
-  'Utilities': ShoppingBag,
-  'Entertainment': ShoppingBag,
-  'Health': ShoppingBag,
-  'Shopping': ShoppingBag,
-  'Salary': TrendingUp,
-  'Freelance': TrendingUp,
-  'Investment': TrendingUp,
-  'Gift': ShoppingBag,
-  'Other': ShoppingBag,
+const ICON_MAP = {
+  Food: 'restaurant', Transport: 'directions_car', Utilities: 'bolt',
+  Entertainment: 'movie', Health: 'favorite', Shopping: 'shopping_bag',
+  Salary: 'payments', Freelance: 'work', Investment: 'trending_up',
+  Gift: 'card_giftcard', Other: 'more_horiz',
 };
+
+const ALL_CATEGORIES = ['All', 'Food', 'Transport', 'Utilities', 'Entertainment', 'Health', 'Shopping', 'Salary', 'Freelance', 'Investment', 'Gift', 'Other'];
 
 export default function Transactions() {
   const [transactions, setTransactions] = useState([]);
@@ -29,332 +24,142 @@ export default function Transactions() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
-  const [showFilters, setShowFilters] = useState(false);
-
-  const categories = ['All', 'Food', 'Transport', 'Utilities', 'Entertainment', 'Health', 'Shopping', 'Salary', 'Freelance', 'Investment', 'Gift', 'Other'];
 
   const fetchTransactions = async () => {
     try {
       setLoading(true);
-
-      if (isGuestMode()) {
-        setTransactions(getGuestTransactions());
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from('transactions')
-        .select('*')
-        .order('date', { ascending: false });
-
+      if (isGuestMode()) { setTransactions(getGuestTransactions()); return; }
+      const { data, error } = await supabase.from('transactions').select('*').order('date', { ascending: false });
       if (error) throw error;
       setTransactions(data || []);
-    } catch (error) {
-      console.error('Error fetching transactions:', error.message);
-      toast.error('Gagal mengambil data transaksi');
+    } catch (e) {
+      console.error(e.message);
+      toast.error('Gagal mengambil data');
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchTransactions();
-  }, []);
+  useEffect(() => { fetchTransactions(); }, []);
 
-  const filteredTransactions = transactions.filter((transaction) => {
-    const titleText = (transaction.title || transaction.description || '').toLowerCase();
-    const categoryText = (transaction.category || '').toLowerCase();
-    const searchLower = searchQuery.toLowerCase();
-
-    const matchesSearch = titleText.includes(searchLower) || categoryText.includes(searchLower);
-    const matchesType = typeFilter === 'all' || transaction.type === typeFilter;
-    const matchesCategory = categoryFilter === 'all' || categoryText === categoryFilter.toLowerCase();
-
-    return matchesSearch && matchesType && matchesCategory;
+  const filtered = transactions.filter(t => {
+    const text = (t.title || t.description || '').toLowerCase();
+    const cat = (t.category || '').toLowerCase();
+    const q = searchQuery.toLowerCase();
+    return text.includes(q) && cat.includes(q)
+      && (typeFilter === 'all' || t.type === typeFilter)
+      && (categoryFilter === 'all' || cat === categoryFilter.toLowerCase());
   });
 
   const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('id-ID', {
-      style: 'currency',
-      currency: 'IDR',
-      minimumFractionDigits: 0
-    }).format(Math.abs(amount));
+    return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(Math.abs(amount));
   };
 
   const handleDelete = async (id) => {
     try {
-      if (isGuestMode()) {
-        deleteGuestTransaction(id);
-        setTransactions(transactions.filter(t => t.id !== id));
-        toast.success('Transaksi berhasil dihapus');
-        return;
-      }
-
-      const { error } = await supabase
-        .from('transactions')
-        .delete()
-        .eq('id', id);
-
+      if (isGuestMode()) { deleteGuestTransaction(id); setTransactions(prev => prev.filter(t => t.id !== id)); toast.success('Dihapus'); return; }
+      const { error } = await supabase.from('transactions').delete().eq('id', id);
       if (error) throw error;
-
-      setTransactions(transactions.filter(t => t.id !== id));
+      setTransactions(prev => prev.filter(t => t.id !== id));
       toast.success('Transaksi berhasil dihapus');
-    } catch (error) {
-      toast.error('Gagal menghapus transaksi');
+    } catch {
+      toast.error('Gagal menghapus');
     } finally {
       setDeletingId(null);
     }
   };
 
-  const handleEdit = (transaction) => {
-    setEditingTransaction(transaction);
-    setIsModalOpen(true);
-  };
-
-  const handleModalClose = () => {
-    setIsModalOpen(false);
-    setEditingTransaction(null);
-    fetchTransactions();
-  };
-
-  const hasActiveFilters = typeFilter !== 'all' || categoryFilter !== 'all' || searchQuery;
+  const handleEdit = (tx) => { setEditingTransaction(tx); setIsModalOpen(true); };
+  const handleModalClose = () => { setIsModalOpen(false); setEditingTransaction(null); fetchTransactions(); };
 
   return (
-    <div className="transactions-page fade-in">
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">Transactions History</h1>
-          <p className="page-subtitle">Pantau dan kelola arus kasmu</p>
-        </div>
-        <button onClick={() => { setEditingTransaction(null); setIsModalOpen(true); }} className="btn btn-primary desktop-add-btn">
-          <PlusCircle size={20} />
-          <span>Add Transaction</span>
-        </button>
+    <div className="tx-page fade-in">
+      {createPortal(
+        <button className="tx-fab" onClick={() => { setEditingTransaction(null); setIsModalOpen(true); }}>
+          <span className="material-symbols-outlined">add</span>
+        </button>,
+        document.body
+      )}
+      <div className="tx-header">
+        <h1 className="tx-title">Riwayat Transaksi</h1>
+        <p className="tx-subtitle">Pantau dan kelola arus kasmu</p>
       </div>
 
-      <div className="search-bar-mobile">
-        <div className="input-wrapper">
-          <Search className="input-icon" size={20} />
+      <section className="filter-section">
+        <div className="search-wrap">
+          <span className="material-symbols-outlined search-icon">search</span>
           <input
             type="text"
+            className="search-input"
+            placeholder="Cari judul atau kategori..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Cari transaksi..."
-            className="input-field"
+            onChange={e => setSearchQuery(e.target.value)}
           />
         </div>
-        <button
-          className={`filter-toggle-btn ${hasActiveFilters ? 'has-filters' : ''}`}
-          onClick={() => setShowFilters(!showFilters)}
-        >
-          <Filter size={20} />
-        </button>
-      </div>
-
-      <div className={`filters-panel ${showFilters ? 'active' : ''}`}>
-        <div className="filters-header">
-          <span>Filters</span>
-          <button onClick={() => { setTypeFilter('all'); setCategoryFilter('all'); }} className="clear-filters-btn">Clear</button>
-        </div>
-        <div className="filters-row">
-          <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="input-field filter-select">
-            <option value="all">Semua Tipe</option>
-            <option value="income">Pemasukan</option>
-            <option value="expense">Pengeluaran</option>
-          </select>
-          <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="input-field filter-select">
-            {categories.map(cat => (
-              <option key={cat} value={cat.toLowerCase()}>{cat}</option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      <div className="card filters-card desktop-filters">
-        <div className="filters-grid">
-          <div className="filter-group search-group">
-            <label className="input-label">Search</label>
-            <div className="input-wrapper">
-              <Search className="input-icon" size={20} />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Cari judul atau kategori..."
-                className="input-field"
-              />
-            </div>
-          </div>
-
-          <div className="filter-group">
-            <label className="input-label">Type</label>
-            <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="input-field">
+        <div className="filter-row">
+          <div className="filter-grp">
+            <label className="filter-label">Tipe</label>
+            <select className="filter-select" value={typeFilter} onChange={e => setTypeFilter(e.target.value)}>
               <option value="all">Semua Tipe</option>
               <option value="income">Pemasukan</option>
               <option value="expense">Pengeluaran</option>
             </select>
           </div>
-
-          <div className="filter-group">
-            <label className="input-label">Category</label>
-            <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="input-field">
-              {categories.map(cat => (
-                <option key={cat} value={cat.toLowerCase()}>{cat}</option>
-              ))}
+          <div className="filter-grp">
+            <label className="filter-label">Kategori</label>
+            <select className="filter-select" value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}>
+              {ALL_CATEGORIES.map(c => <option key={c} value={c.toLowerCase()}>{c === 'All' ? 'Semua' : c}</option>)}
             </select>
           </div>
         </div>
-      </div>
+      </section>
 
-      <div className="card table-card">
-        <div className="table-container">
-          {loading ? (
-            <div className="loading-state">Memuat data transaksi...</div>
-          ) : (
-            <>
-              <table className="transactions-table">
-                <thead>
-                  <tr>
-                    <th>Transaction</th>
-                    <th>Category</th>
-                    <th>Date</th>
-                    <th className="text-right">Amount</th>
-                    <th className="text-center">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredTransactions.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} className="empty-state">
-                        {searchQuery ? "Tidak ada transaksi yang cocok" : "Belum ada riwayat transaksi"}
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredTransactions.map((t) => (
-                      <tr key={t.id}>
-                        <td>
-                          <div className="table-transaction">
-                            <div className={`transaction-icon ${t.type}`}>
-                              <ShoppingBag size={20} />
-                            </div>
-                            <div>
-                              <p className="table-title">{t.title || t.description || "Tanpa Judul"}</p>
-                              <p className="table-type-label">{t.type}</p>
-                            </div>
-                          </div>
-                        </td>
-                        <td><span className="category-badge">{t.category}</span></td>
-                        <td>
-                          <div className="date-cell">
-                            <Calendar size={16} />
-                            {new Date(t.date).toLocaleDateString('id-ID', {
-                              day: 'numeric',
-                              month: 'short',
-                              year: 'numeric'
-                            })}
-                          </div>
-                        </td>
-                        <td className="text-right">
-                          <span className={`table-amount ${t.type}`}>
-                            {t.type === 'income' ? '+' : '-'}{formatCurrency(t.amount)}
-                          </span>
-                        </td>
-                        <td>
-                          <div className="action-buttons">
-                            <button onClick={() => handleEdit(t)} className="action-btn edit" title="Edit">
-                              <Edit2 size={16} />
-                            </button>
+      <div className="tx-list">
+        <div className="tx-list-header">
+          <span className="tx-list-title">Transaksi Terbaru</span>
+        </div>
 
-                            {deletingId === t.id ? (
-                              <div className="confirm-delete-actions">
-                                <button onClick={() => handleDelete(t.id)} className="action-btn confirm" title="Ya, Hapus">✓</button>
-                                <button onClick={() => setDeletingId(null)} className="action-btn cancel" title="Batal">✕</button>
-                              </div>
-                            ) : (
-                              <button onClick={() => setDeletingId(t.id)} className="action-btn delete" title="Hapus">
-                                <Trash2 size={16} />
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-
-              <div className="mobile-transactions-list">
-                {filteredTransactions.length === 0 ? (
-                  <div className="empty-state-mobile">
-                    {searchQuery ? "Tidak ada transaksi yang cocok" : "Belum ada riwayat transaksi"}
+        {loading ? (
+          <div className="tx-empty">Memuat data...</div>
+        ) : filtered.length === 0 ? (
+          <div className="tx-empty">{searchQuery ? 'Tidak ada yang cocok' : 'Belum ada transaksi'}</div>
+        ) : filtered.map(t => {
+          const icon = ICON_MAP[t.category] || 'more_horiz';
+          return (
+            <div key={t.id} className="tx-card" onClick={() => handleEdit(t)}>
+              <div className="tx-card-left">
+                <div className={`tx-card-icon ${t.type}`}>
+                  <span className="material-symbols-outlined filled">{icon}</span>
+                </div>
+                <div className="tx-card-info">
+                  <h4 className="tx-card-title">{t.title || t.description || 'Tanpa Judul'}</h4>
+                  <p className="tx-card-meta">
+                    {new Date(t.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    {' • '}{t.category}
+                  </p>
+                </div>
+              </div>
+              <div className="tx-card-right">
+                <span className={`tx-card-amount ${t.type}`}>
+                  {t.type === 'income' ? '+' : '-'}{formatCurrency(t.amount)}
+                </span>
+                {deletingId === t.id ? (
+                  <div className="tx-card-actions">
+                    <button className="tx-action confirm" onClick={e => { e.stopPropagation(); handleDelete(t.id); }}>✓</button>
+                    <button className="tx-action cancel" onClick={e => { e.stopPropagation(); setDeletingId(null); }}>✕</button>
                   </div>
                 ) : (
-                  filteredTransactions.map((t) => {
-                    const Icon = iconMap[t.category] || ShoppingBag;
-                    return (
-                      <div key={t.id} className={`mobile-transaction-card ${t.type}`}>
-                        <div className="mtc-top">
-                          <div className="mtc-left">
-                            <div className={`mtc-icon ${t.type}`}>
-                              <Icon size={22} />
-                            </div>
-                            <div className="mtc-info">
-                              <p className="mtc-title">{t.title || t.description || "Tanpa Judul"}</p>
-                              <p className="mtc-category">{t.category}</p>
-                            </div>
-                          </div>
-                          <div className="mtc-amount">
-                            <span className={`mtc-value ${t.type}`}>
-                              {t.type === 'income' ? '+' : '-'}{formatCurrency(t.amount)}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="mtc-bottom">
-                          <div className="mtc-date">
-                            <Calendar size={14} />
-                            {new Date(t.date).toLocaleDateString('id-ID', {
-                              day: 'numeric',
-                              month: 'short',
-                              year: 'numeric'
-                            })}
-                          </div>
-                          <div className="mtc-actions">
-                            <button onClick={() => handleEdit(t)} className="mtc-action edit">
-                              <Edit2 size={16} />
-                            </button>
-                            {deletingId === t.id ? (
-                              <>
-                                <button onClick={() => handleDelete(t.id)} className="mtc-action confirm">✓</button>
-                                <button onClick={() => setDeletingId(null)} className="mtc-action cancel">✕</button>
-                              </>
-                            ) : (
-                              <button onClick={() => setDeletingId(t.id)} className="mtc-action delete">
-                                <Trash2 size={16} />
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })
+                  <button className="tx-action delete" onClick={e => { e.stopPropagation(); setDeletingId(t.id); }}>
+                    <span className="material-symbols-outlined">delete</span>
+                  </button>
                 )}
               </div>
-            </>
-          )}
-        </div>
+            </div>
+          );
+        })}
       </div>
 
-      <button onClick={() => { setEditingTransaction(null); setIsModalOpen(true); }} className="btn btn-primary mobile-add-btn">
-        <PlusCircle size={20} />
-        <span>Add Transaction</span>
-      </button>
-
-      <TransactionModal
-        isOpen={isModalOpen}
-        onClose={handleModalClose}
-        transaction={editingTransaction}
-        onSave={fetchTransactions}
-      />
+      <TransactionModal isOpen={isModalOpen} onClose={handleModalClose} transaction={editingTransaction} onSave={fetchTransactions} />
     </div>
   );
 }
